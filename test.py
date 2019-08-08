@@ -1,130 +1,85 @@
 # -*- coding: utf-8 -*-
-# @Time   : 19-8-5 下午5:31
+# @Time   : 19-8-7 下午5:12
 # @Author : huziying
 # @File   : test.py
 
 import cv2
 import numpy
+import imutils
 
-numpy.set_printoptions(threshold=numpy.inf)
+# todo match template......
 
+# todo first: cv2.matchShapes
+"""比较两个形状或者轮廓的相似度，如果返回值越小，匹配越好"""
 
-def a_measurement(ans, img):
-    """最左边点 a, 正常 半圆环型"""
-    a_left = ans[ans.argmin(axis=0)[0]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
-    # print("最左边", a_left, type(A_left[0]), A_left[0], A_left[1])  # [74 383]
-    coordinate = numpy.where((ans[:, 1] == a_left[1]) & (ans[:, 0] != a_left[0]))  # <class 'tuple'> 只取第2列的最大值, 剔除自身
+template = cv2.imread('/home/dsd/Desktop/circuit_board/template/polygon_2.png', 0)
+thresh = cv2.threshold(template, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    a_right = ans[coordinate][0]
-    # print("a_right", a_right, type(a_right))
+cnts_1 = contours[0]
 
-    a_length = a_right[0] - a_left[0]
-    # print("a_length", a_length, type(str(a_length))) [231 383]
+cv2.namedWindow('thresh', cv2.WINDOW_NORMAL)
+cv2.imshow("thresh", thresh)
+cv2.waitKey(0)
 
-    cv2.line(img, tuple(a_left), tuple(a_right), (255, 0, 0), thickness=2)
-    cv2.putText(img, str(a_length), (a_left[0] - 10, a_left[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+image = cv2.imread('/home/dsd/Desktop/circuit_board/测试图/正常标准图03.jpg', 0)
+thresh2 = cv2.threshold(image, 127, 255, 0)[1]
+contours_2, hierarchy_2 = cv2.findContours(thresh2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+cnts_2 = contours_2[0]
 
-    img_height, img_width = img.shape[0], img.shape[1]
-    distance = (img_width - int(a_right[0])) // 3
-    # print("distance", distance)
-    return distance, a_right[0]
+cv2.namedWindow('thresh2', cv2.WINDOW_NORMAL)
+cv2.imshow("thresh2", thresh2)
+cv2.waitKey(0)
 
+# print(len(cnts_1), len(cnts_2))
+ret = cv2.matchShapes(cnts_1, cnts_2, 1, 0)
+print(ret)
 
-def b_d_measurement(ans, img, distance, a_right_x):
-    """上 左边点 b, 下左边点 d, 正常 半圆环型"""
-    b_d_x = distance + a_right_x
-    # print("b_d_left_x", b_d_left_x)
-    b_d_coordinate_array = ans[numpy.where(ans[:, 0] == b_d_x)]
-    index = numpy.argsort(b_d_coordinate_array[:, 1])  # 排序: 按照y坐标从上到下排列
-    temp = [b_d_coordinate_array[i] for i in index]
-    temp_2 = list()
-    # print('temp', temp, len(temp))
-    for t in range(len(temp) - 1):
-        print(t), print(temp[t + 1][1], temp[t][1])
-        if temp[t + 1][1] - temp[t][1] >= 5:
-            temp_2.append(temp[t + 1])
+cv2.destroyAllWindows()
 
-    temp_2.insert(0, temp[0])
-    # print('temp', temp, len(temp))
-    # print('temp_2', temp_2)
-    b_d_coordinate_array = numpy.array(temp_2)
-    # print("b_d_coordinate_array", b_d_coordinate_array)
+# todo second: cv2.matchTemplate
+# template image
+# template = cv2.imread('/home/dsd/Desktop/circuit_board/template/half_circle_1.jpg', 0)
+# H, W = template.shape
+# template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+# template_blurred = cv2.GaussianBlur(template_gray, (5, 5), 0)
+# template_thresh = cv2.threshold(template_blurred, 120, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+# edges = cv2.Canny(template_thresh, 200, 400, 3)
 
-    b_top, b_bottom = tuple(b_d_coordinate_array[index[0]]), tuple(b_d_coordinate_array[index[1]])
-    d_top, d_bottom = tuple(b_d_coordinate_array[index[2]]), tuple(b_d_coordinate_array[index[3]])
-    b_length = b_bottom[1] - b_top[1]
-    d_length = d_bottom[1] - d_top[1]
+# cv2.namedWindow('template', cv2.WINDOW_NORMAL)
+# cv2.imshow("template", template)
+# cv2.waitKey(0)
 
-    cv2.line(img, b_top, b_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(b_length), (b_top[0] + 10, b_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+# orb = cv2.ORB_create(50000, scoreType=cv2.ORB_FAST_SCORE, nlevels=20, edgeThreshold=5)
+# kp1, des1 = orb.detectAndCompute(edges, None)
+# tmp_keys = cv2.drawKeypoints(edges, kp1, outImage=numpy.array([]), color=(0, 255, 0), flags=0)
 
-    cv2.line(img, d_top, d_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(d_length), (d_top[0] + 10, d_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+# match image
+# image = cv2.imread('/home/dsd/Desktop/circuit_board/测试图/正常标准图01.jpg')
+# gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+# blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+# thresh = cv2.threshold(blurred, 190, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+# edges_2 = cv2.Canny(thresh, 200, 400, 3)
 
+# cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+# cnts = imutils.grab_contours(cnts)
+# print('cnts', cnts)
 
-def c_e_measurement(ans, img, distance, a_right_x):
-    """上 右边点 c, 下 右边点 e, 正常 半圆环型"""
-    c_e_x = int(distance * 2 + a_right_x)
-    c_e_coordinate_array = ans[numpy.where(ans[:, 0] == c_e_x)]
-    index = numpy.argsort(c_e_coordinate_array[:, 1])  # 排序: 按照y坐标从上到下排列
-    # print("c_e_coordinate_array", c_e_coordinate_array), print("index", index)
-    temp = [c_e_coordinate_array[i] for i in index]
-    temp_2 = list()
-    for t in range(len(temp) - 1):
-        print(t), print(temp[t + 1][1], temp[t][1])
-        if temp[t + 1][1] - temp[t][1] >= 5:
-            temp_2.append(temp[t + 1])
-    temp_2.insert(0, temp[0])
-    c_e_coordinate_array = numpy.array(temp_2)
-
-    c_top, c_bottom = tuple(c_e_coordinate_array[index[0]]), tuple(c_e_coordinate_array[index[1]])
-    e_top, e_bottom = tuple(c_e_coordinate_array[index[2]]), tuple(c_e_coordinate_array[index[3]])
-    b_length = c_bottom[1] - c_top[1]
-    d_length = e_bottom[1] - e_top[1]
-
-    cv2.line(img, c_top, c_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(b_length), (c_top[0] + 10, c_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-    cv2.line(img, e_top, e_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(d_length), (e_top[0] + 10, e_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+# result = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED)
+# print('result', result)
+#
+# threshold = 0.7
+# loc = numpy.where(result >= threshold)
+# for pt in zip(*loc[::-1]):
+#     cv2.rectangle(image, pt, (pt[0] + W, pt[1] + H), (0, 0, 255), 2)
 
 
-def main():
-    """
-    (x, y)
-    ————————→ x
-    |
-    |
-    |
-    |
-    ↓
-    y
-    """
-    img = cv2.imread('/home/dsd/Desktop/光学检测电路板的铜厚/测试图/正常标准图01.jpg')
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_blurred = cv2.GaussianBlur(img_gray, (5, 5), 0)
-    img_thresh = cv2.threshold(img_blurred, 120, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-    edges = cv2.Canny(img_thresh, 200, 400, 3)
-    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    # cv2.imshow("edges", edges)
-    # cv2.waitKey(0)
+# cv2.namedWindow('template', cv2.WINDOW_NORMAL)
+# cv2.imshow("template", template)
+# cv2.waitKey(0)
 
-    ans = []
-    for y in range(0, edges.shape[0]):
-        for x in range(0, edges.shape[1]):
-            if edges[y, x] != 0:
-                ans += [[x, y]]
-    ans = numpy.array(ans)
-
-    distance, a_right_x = a_measurement(ans, img)
-    b_d_measurement(ans, img, distance, a_right_x)
-    c_e_measurement(ans, img, distance, a_right_x)
-
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    main()
+# cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+# cv2.imshow("image", image)
+# cv2.waitKey(0)
+#
+# cv2.destroyAllWindows()
