@@ -11,13 +11,13 @@ import numpy
 numpy.set_printoptions(threshold=numpy.inf)
 
 
-def a_measurement(ans, img):
+def a_measurement(coordinates, img):
     """最左边点 a, 正常 半圆环型"""
-    a_left = ans[ans.argmin(axis=0)[0]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
+    a_left = coordinates[coordinates.argmin(axis=0)[0]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
     # print("最左边", a_left, type(A_left[0]), A_left[0], A_left[1])  # [74 383]
-    coordinate = numpy.where((ans[:, 1] == a_left[1]) & (ans[:, 0] != a_left[0]))  # <class 'tuple'> 只取第2列的最大值, 剔除自身
+    coordinate = numpy.where((coordinates[:, 1] == a_left[1]) & (coordinates[:, 0] != a_left[0]))  # <class 'tuple'> 只取第2列的最大值, 剔除自身
 
-    a_right = ans[coordinate][0]
+    a_right = coordinates[coordinate][0]
     # print("a_right", a_right, type(a_right))
 
     a_length = a_right[0] - a_left[0]
@@ -32,17 +32,17 @@ def a_measurement(ans, img):
     return distance, a_right[0]
 
 
-def b_d_measurement(ans, img, distance, a_right_x):
+def b_d_measurement(coordinates, img, distance, a_right_x):
     """上 左边点 b, 下左边点 d, 正常 半圆环型"""
     b_d_x = distance + a_right_x
     # print("b_d_left_x", b_d_left_x)
-    b_d_coordinate_array = ans[numpy.where(ans[:, 0] == b_d_x)]
+    b_d_coordinate_array = coordinates[numpy.where(coordinates[:, 0] == b_d_x)]
     index = numpy.argsort(b_d_coordinate_array[:, 1])  # 排序: 按照y坐标从上到下排列
     temp = [b_d_coordinate_array[i] for i in index]
     temp_2 = list()
     # print('temp', temp, len(temp))
     for t in range(len(temp) - 1):
-        print(t), print(temp[t + 1][1], temp[t][1])
+        # print(t), print(temp[t + 1][1], temp[t][1])
         if temp[t + 1][1] - temp[t][1] >= 5:
             temp_2.append(temp[t + 1])
 
@@ -64,16 +64,16 @@ def b_d_measurement(ans, img, distance, a_right_x):
     cv2.putText(img, str(d_length), (d_top[0] + 10, d_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
 
-def c_e_measurement(ans, img, distance, a_right_x):
+def c_e_measurement(coordinates, img, distance, a_right_x):
     """上 右边点 c, 下 右边点 e, 正常 半圆环型"""
     c_e_x = int(distance * 2 + a_right_x)
-    c_e_coordinate_array = ans[numpy.where(ans[:, 0] == c_e_x)]
+    c_e_coordinate_array = coordinates[numpy.where(coordinates[:, 0] == c_e_x)]
     index = numpy.argsort(c_e_coordinate_array[:, 1])  # 排序: 按照y坐标从上到下排列
     # print("c_e_coordinate_array", c_e_coordinate_array), print("index", index)
     temp = [c_e_coordinate_array[i] for i in index]
     temp_2 = list()
     for t in range(len(temp) - 1):
-        print(t), print(temp[t + 1][1], temp[t][1])
+        # print(t), print(temp[t + 1][1], temp[t][1])
         if temp[t + 1][1] - temp[t][1] >= 5:
             temp_2.append(temp[t + 1])
     temp_2.insert(0, temp[0])
@@ -113,16 +113,12 @@ def main():
     # cv2.imshow("edges", edges)
     # cv2.waitKey(0)
 
-    ans = []
-    for y in range(0, edges.shape[0]):
-        for x in range(0, edges.shape[1]):
-            if edges[y, x] != 0:
-                ans += [[x, y]]
-    ans = numpy.array(ans)
+    indices = numpy.where(edges != [0])
+    coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    distance, a_right_x = a_measurement(ans, img)
-    b_d_measurement(ans, img, distance, a_right_x)
-    c_e_measurement(ans, img, distance, a_right_x)
+    distance, a_right_x = a_measurement(coordinates, img)
+    b_d_measurement(coordinates, img, distance, a_right_x)
+    c_e_measurement(coordinates, img, distance, a_right_x)
 
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
