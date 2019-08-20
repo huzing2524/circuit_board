@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Time   : 19-8-8 下午3:31
 # @Author : huziying
-# @File   : rectangle.py
+# @File   : rectangle_1.py
 
 # 正常不规则形状 矩形: 噪点非常多
 
@@ -82,7 +82,7 @@ def c_d_measurement(coordinates, img):
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/rectangle.jpg')
+        img = cv2.imread('measurement/template/rectangle_1.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:

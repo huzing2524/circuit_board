@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from .utils import half_circle, line, polygon_1, polygon_2, rectangle
+from .utils import half_circle, line, rectangle_1, rectangle_2, polygon_1, polygon_2, polygon_3, polygon_4
 
 
 class Measurement(APIView):
@@ -28,9 +28,15 @@ class Measurement(APIView):
         elif shape == "3":
             polygon_1.main(image)
         elif shape == "4":
-            pass
+            polygon_2.main(image)
         elif shape == "5":
-            rectangle.main(image)
+            rectangle_1.main(image)
+        elif shape == "6":
+            rectangle_2.main(image)
+        elif shape == "7":
+            polygon_3.main(image)
+        elif shape == "8":
+            polygon_4.main(image)
         else:
             return Response({"res": 1, "errmsg": "参数shape代号错误！"}, status=status.HTTP_400_BAD_REQUEST)
 
