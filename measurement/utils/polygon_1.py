@@ -238,6 +238,7 @@ def main(image=None):
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
+
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
     # img_blurred = cv2.GaussianBlur(img_gray, (15, 15), 0)
@@ -269,6 +270,8 @@ def main(image=None):
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
+
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

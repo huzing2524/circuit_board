@@ -78,7 +78,7 @@ def polygon_2(contours_2):
 
 def rectangle(contours_2):
     """矩形"""
-    template = cv2.imread('./template/rectangle.jpg', 0)
+    template = cv2.imread('./template/rectangle_1.jpg', 0)
     thresh = cv2.threshold(template, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours_1 = contours[0]
