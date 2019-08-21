@@ -26,7 +26,7 @@ def main(image=None):
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_blurred = cv2.GaussianBlur(img_gray, (135, 135), 0)
+    img_blurred = cv2.GaussianBlur(img_gray, (5, 5), 0)
     # img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
     # img_thresh = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
     img_thresh = cv2.threshold(img_blurred, 127, 255, 0)[1]  # 简单滤波
