@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # @Time   : 19-8-12 上午9:25
 # @Author : huziying
-# @File   : line.py
+# @File   : line_1.py
 
 import cv2
 import numpy
@@ -42,7 +42,7 @@ def a_b_measurement(coordinates, img):
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/line.jpg')
+        img = cv2.imread('measurement/template/line_1.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -76,6 +76,8 @@ def main(image=None):
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
+
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':

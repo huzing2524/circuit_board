@@ -81,7 +81,7 @@ def main(image=None):
     # img_thresh = cv2.threshold(img_blurred, 127, 255, 0)[1]  # 简单滤波
     # img_thresh = cv2.adaptiveThreshold(img_blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
 
-    edges = cv2.Canny(img_thresh, 200, 400, 1)  # shape (1944, 2592)
+    edges = cv2.Canny(img_thresh, 200, 400, 1)
 
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
