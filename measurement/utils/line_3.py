@@ -12,13 +12,35 @@ import os
 
 def a_b_measurement(coordinates, img):
     """上面竖直位置 a, 下面 竖直位置 b"""
-    pass
+    top = coordinates[coordinates.argmin(axis=0)[1]]
+    top_array = coordinates[numpy.where(coordinates[:, 0] == top[0])]
+    # print("top", top), print("top_array", top_array)
+    top_limit = coordinates[numpy.where(
+        (coordinates[:, 1] >= top_array[0][1]) & (coordinates[:, 1] <= top_array[2][1] - 20))]
+    top_left = top_limit[top_limit.argmin(axis=0)[0]]
+    top_right = top_limit[top_limit.argmax(axis=0)[0]]
+    # print("top_left", top_left, "top_right", top_right)
+
+    a_x = top_left[0] + (top_right[0] - top_left[0]) // 2
+    a_coordinates = coordinates[numpy.where(coordinates[:, 0] == a_x)]
+    # print("a_coordinates", a_coordinates)
+
+    a_coordinate_x, a_coordinate_y = a_coordinates[1], a_coordinates[2]
+    b_coordinate_x, b_coordinate_y = a_coordinates[-3], a_coordinates[-2]
+
+    cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(a_coordinate_y[1] - a_coordinate_x[1]),
+                (a_coordinate_x[0] + 10, a_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+
+    cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(b_coordinate_y[1] - b_coordinate_x[1]),
+                (b_coordinate_x[0] + 10, b_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/line_2.jpg')
+        img = cv2.imread('measurement/template/line_3.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
