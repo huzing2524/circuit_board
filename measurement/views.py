@@ -8,7 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .utils import half_circle, line_1, line_2, line_3, rectangle_1, rectangle_2, polygon_1, polygon_2, polygon_3, \
-    polygon_4, polygon_5, polygon_6, green_oil_thickness, fiber_surface, copper_surface
+    polygon_4, polygon_5, polygon_6, green_oil_thickness, fiber_surface, copper_surface, circuit_surface, \
+    circuit_copper_width
 
 
 class Measurement(APIView):
@@ -52,6 +53,10 @@ class Measurement(APIView):
             fiber_surface.main(image)
         elif shape == "15":
             copper_surface.main(image)
+        elif shape == "16":
+            circuit_surface.main(image)
+        elif shape == "17":
+            circuit_copper_width.main(image)
         else:
             return Response({"res": 1, "errmsg": "参数shape代号错误！"}, status=status.HTTP_400_BAD_REQUEST)
 
