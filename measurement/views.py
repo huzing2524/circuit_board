@@ -14,7 +14,7 @@ from .utils import half_circle, line_1, line_2, line_3, rectangle_1, rectangle_2
 class Measurement(APIView):
     """接口"""
 
-    def get(self, request):
+    def post(self, request):
         shape = request.query_params.get("shape")  # 形状代号
         image = request.data.get("image")  # 图片 base64 encode
         # if not all([shape, image]):
