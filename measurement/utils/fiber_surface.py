@@ -12,51 +12,73 @@ import os
 
 def a_b_measurement(coordinates, img):
     """"""
-    pass
+    height, width, dimension = img.shape
+    a_x = width // 2
+    a_array = coordinates[numpy.where(coordinates[:, 0] == a_x)]
+    # print("a_array", a_array)
+
+    temp_list = list()
+    for index in range(len(a_array)):
+        if a_array[index + 1][1] - a_array[index][1] > 300:
+            temp_list.append(index)
+            break
+    a_array_reverse = a_array[::-1]
+    for index in range(len(a_array_reverse)):
+        if (a_array_reverse[index][1] - a_array_reverse[index + 1][1] > 30) and \
+                (a_array_reverse[index][1] - a_array_reverse[index + 1][1] < 200):
+            temp_list.append(index + 1)
+            break
+    # print("temp_list", temp_list)
+
+    a_coordinate_x, a_coordinate_y = a_array[0], a_array[temp_list[0]]
+    b_coordinate_x, b_coordinate_y = a_array_reverse[temp_list[1]], a_array[-1]
+
+    a_length = a_coordinate_y[1] - a_coordinate_x[1]
+    b_length = b_coordinate_y[1] - b_coordinate_x[1]
+
+    cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(a_length), (a_coordinate_x[0] + 10, a_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
+    cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/选区_007.png')
+        img = cv2.imread('measurement/template/fiber_surface.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
-    # todo 上边界对比度差，找不到...
-    # img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # img_blurred = cv2.GaussianBlur(img_gray, (15, 15), 0)
-    # img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
-    # img_blurred = cv2.bilateralFilter(img_gray, 9, 75, 75)
-    # 灰度: 白色为255, 黑色为0
-    # img_thresh = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
-    # img_thresh = cv2.threshold(img_blurred, 127, 255, 0)[1]  # 简单滤波
-    # img_thresh = cv2.adaptiveThreshold(img_blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    """边缘检测: 对比度差, 上边界检测不到。 使用颜色区分"""
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    img_blurred = cv2.bilateralFilter(img_hsv, 9, 100, 15)
 
-    # edges = cv2.Canny(img_thresh, 200, 400, 1)
+    # 青色
+    lower_cyan = numpy.array([78, 43, 46])
+    upper_cyan = numpy.array([99, 255, 255])
 
-    # indices = numpy.where(edges != [0])
-    # coordinates = numpy.array(list(zip(indices[1], indices[0])))
+    mask = cv2.inRange(img_blurred, lower_cyan, upper_cyan)
+    # res = cv2.bitwise_and(img, img, mask=mask)
 
-    # for c in coordinates:
-    #     cv2.circle(img, tuple(c), 1, (255, 0, 0), 1)
+    edges = cv2.Canny(mask, 200, 400, 1)
 
-    # a_b_measurement(coordinates, img)
+    indices = numpy.where(edges != [0])
+    coordinates = numpy.array(list(zip(indices[1], indices[0])))
+
+    a_b_measurement(coordinates, img)
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
 
-    # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
-    # cv2.imshow("img_thresh", img_thresh)
-    # cv2.waitKey(0)
-    #
-    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    # cv2.imshow("edges", edges)
+    # cv2.namedWindow('res', cv2.WINDOW_NORMAL)
+    # cv2.imshow("res", res)
     # cv2.waitKey(0)
 
-    # todo 使用颜色区分...
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)

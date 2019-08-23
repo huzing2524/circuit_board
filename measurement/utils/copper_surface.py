@@ -10,8 +10,9 @@ import base64
 import os
 
 
-def a_b_measurement(coordinates, img, width):
+def a_b_measurement(coordinates, img):
     """"""
+    height, width, dimension = img.shape
     left = coordinates[coordinates.argmin(axis=0)[0]]
     left_array = coordinates[numpy.where(coordinates[:, 0] == left[0])]
     # print("left_array", left_array)
@@ -65,7 +66,6 @@ def main(image=None):
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
-    height, width, dimension = img.shape
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
     img_thresh = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
@@ -74,7 +74,7 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_b_measurement(coordinates, img, width)
+    a_b_measurement(coordinates, img)
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
