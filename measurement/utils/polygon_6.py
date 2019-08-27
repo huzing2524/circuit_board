@@ -13,46 +13,60 @@ import os
 def a_measurement(coordinates, img):
     """右边 竖直位置 a"""
     right = coordinates[coordinates.argmax(axis=0)[0]]
-    a_right_array = coordinates[numpy.where(coordinates[:, 0] == right[0])]
-    # print("right", right), print("a_right_array", a_right_array)
+    a_right_array = coordinates[numpy.where(coordinates[:, 0] == right[0] - 100)]
+    print("right", right), print("a_right_array", a_right_array)
+
     temp_list = list()
-    for index in range(len(a_right_array)):
+    for index in range(len(a_right_array) - 1):
         if a_right_array[index + 1][1] - a_right_array[index][1] > 70:
             temp_list.append(index + 1)
             break
-    a_y = a_right_array[temp_list[0]]
+    a_y = a_right_array[temp_list[0]][1] if temp_list else a_right_array[0]
     a_right_bottom = a_right_array[-1]
-    # print("a_y", a_y), print("a_right_bottom", a_right_bottom)
+    print("a_y", a_y), print("a_right_bottom", a_right_bottom)
 
-    # limit = coordinates[numpy.where(coordinates[:, 1] > (a_right_bottom[1] + 70))][0]
+    height, width, dimension = img.shape
+    bottom_array = coordinates[numpy.where(coordinates[:, 1] <= height)]
+    print("bottom_array", bottom_array)
+    temp_list_2 = list()
+    for index in range(len(bottom_array) - 1):
+        if bottom_array[index + 1][0] - bottom_array[index][0] > 200:
+            temp_list_2.append(index + 1)
+            break
+
+    # todo 图片4 有点问题，模糊导致下面没有边缘
+    bottom_left = bottom_array[temp_list_2[0]]
+    print("bottom_left", bottom_left)
+
+    limit = coordinates[numpy.where(
+        (coordinates[:, 0] > (bottom_left[0] - 20)) & (coordinates[:, 0] < (width - 100)) &
+        (coordinates[:, 1] > (a_right_bottom[1] + 50)))]
     # print("limit", limit)
+    for l in limit:
+        cv2.circle(img, tuple(l), 1, (0, 255, 0), 1)
 
-    bottom = coordinates[coordinates.argmax(axis=0)[1]]
-    # print("bottom", bottom)  # [1182 1919]
-    a_bottom_array = coordinates[numpy.where(coordinates[:, 1] == bottom[1] - 300)]
-    # print("a_bottom_array", a_bottom_array)
-    a_x_1 = 1662
-    a_bottom_array_2 = coordinates[numpy.where(coordinates[:, 1] >= (bottom[1] - 600))]
-    # print("a_bottom_array_2", a_bottom_array_2)
-    a_x_2 = 1648
+    temp_list_4 = list()
+    for index in range(len(limit) - 1):
+        if limit[index + 1][1] - limit[index][1] > 30:
+            temp_list_4.append(index + 1)
+            break
+    print("temp_list_4", temp_list_4)
+    a_coordinate_bottom = limit[temp_list_4[0]] if temp_list_4 else limit[limit.argmin(axis=0)[1]]
+    a_coordinate_top = numpy.array([a_coordinate_bottom[0], a_y])
+    a_length = a_coordinate_bottom[1] - a_coordinate_top[1]
+    print("a_coordinate_bottom", a_coordinate_bottom, "a_coordinate_top", a_coordinate_top)
 
-    a_bottom_array_3 = coordinates[numpy.where(coordinates[:, 1] >= (bottom[1] - 900))]
-    # print("a_bottom_array_3", a_bottom_array_3)
-    a_x_3 = 1640
+    cv2.line(img, tuple(a_coordinate_top), tuple(a_coordinate_bottom), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(a_length), (a_coordinate_top[0] + 10, a_coordinate_top[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
 
-    a_x_mean = (a_x_1 + a_x_2 + a_x_3) // 3
-    print("a_x_mean", a_x_mean)
-
-    a_coordinate_bottom = coordinates[numpy.where(coordinates[:, 0] == a_x_mean)]
-    # print("a_coordinate_bottom", a_coordinate_bottom)
-
-    cv2.line(img, (a_x_mean, 238), (a_x_mean, 518), (255, 0, 0), thickness=4)
+    return a_length
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/polygon_6.jpg')
+        img = cv2.imread('measurement/template/3.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -74,9 +88,9 @@ def main(image=None):
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
 
-    cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
-    cv2.imshow("img_thresh", img_thresh)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img_thresh", img_thresh)
+    # cv2.waitKey(0)
 
     cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
     cv2.imshow("edges", edges)
