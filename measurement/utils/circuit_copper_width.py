@@ -9,6 +9,9 @@ import uuid
 import base64
 import os
 
+COMBINE = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u',
+           'v', 'w', 'x', 'y', 'z']
+
 
 def a_b_measurement(coordinates, img):
     """会有多个 部分尺寸测量 整体宽度 里面的部分位置和背景噪声很像，无法识别测量"""
@@ -20,31 +23,32 @@ def a_b_measurement(coordinates, img):
         (coordinates[:, 1] >= bottom_array[-2][1] - 100) & (coordinates[:, 1] <= bottom_array[-1][1] + 100))]
     coordinates_limit_sort = width_limit[width_limit[:, 0].argsort(), :]
     # print("coordinates_limit_sort", coordinates_limit_sort)
-    count_list = list()
+
+    count_list, middle_list, length_list = list(), list(), list()
     for index in range(len(coordinates_limit_sort) - 1):
         if coordinates_limit_sort[index + 1][0] - coordinates_limit_sort[index][0] > 50:
             count_list.append(index)
-    # print("count_list", count_list)
-    # todo 多个物体自动测量
-    a_x_left, a_x_right = coordinates_limit_sort[0][0], coordinates_limit_sort[count_list[0]][0]
-    b_x_left, b_x_right = coordinates_limit_sort[count_list[0] + 1][0], coordinates_limit_sort[-1][0]
-    # print(a_x_left, a_x_right), print(b_x_left, b_x_right)
-    a_middle = a_x_left + (a_x_right - a_x_left) // 2
-    a_coordinates_array = coordinates[numpy.where(coordinates[:, 0] == a_middle)]
-    a_coordinate_top, a_coordinate_bottom = a_coordinates_array[-2], a_coordinates_array[-1]
-    a_length = a_coordinate_bottom[1] - a_coordinate_top[1]
-    cv2.line(img, tuple(a_coordinate_top), tuple(a_coordinate_bottom), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(a_length), (a_coordinate_top[0] + 10, a_coordinate_top[1] + 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+            count_list.append(index + 1)
 
-    b_middle = b_x_left + (b_x_right - b_x_left) // 2
-    b_coordinates_array = coordinates[numpy.where(coordinates[:, 0] == b_middle)]
-    b_coordinate_top, b_coordinate_bottom = b_coordinates_array[-2], b_coordinates_array[-1]
-    b_length = b_coordinate_bottom[1] - b_coordinate_top[1]
-    # print("a_coordinates_array", a_coordinates_array), print("b_coordinates_array", b_coordinates_array)
-    cv2.line(img, tuple(b_coordinate_top), tuple(b_coordinate_bottom), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(b_length), (b_coordinate_top[0] + 10, b_coordinate_top[1] + 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+    count_list.insert(0, 0)
+    count_list.append(len(coordinates_limit_sort) - 1)
+    # print("count_list", count_list)
+
+    # 多个物体自动测量
+    for index in range(len(count_list) - 1):
+        x_left, x_right = coordinates_limit_sort[count_list[index]][0], coordinates_limit_sort[count_list[index + 1]][0]
+        middle = x_left + (x_right - x_left) // 2
+        # print("x_left", x_left, "x_right", x_right, "middle", middle)
+        middle_array = width_limit[numpy.where(width_limit[:, 0] == middle)]
+        # print("middle_array", middle_array)
+        if len(middle_array) > 0:
+            top, bottom = middle_array[0], middle_array[-1]
+            length = abs(bottom[1] - top[1])
+            length_list.append(length)
+            cv2.line(img, tuple(top), tuple(bottom), (255, 0, 0), thickness=4)
+            cv2.putText(img, str(length), (top[0] + 10, top[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+
+    return dict(zip(COMBINE, length_list))
 
 
 def main(image=None):
@@ -66,7 +70,7 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_b_measurement(coordinates, img)
+    data = a_b_measurement(coordinates, img)
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
@@ -75,15 +79,17 @@ def main(image=None):
     # cv2.imshow("img_thresh", img_thresh)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    cv2.imshow("edges", edges)
-    cv2.waitKey(0)
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
 
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
 
     cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

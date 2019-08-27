@@ -54,9 +54,10 @@ class Measurement(APIView):
         elif shape == "15":
             copper_surface.main(image)
         elif shape == "16":
-            circuit_surface.main(image)
+            data = circuit_surface.main(image)
         elif shape == "17":
-            circuit_copper_width.main(image)
+            data = circuit_copper_width.main(image)
+            return Response(data, status=status.HTTP_200_OK)
         else:
             return Response({"res": 1, "errmsg": "参数shape代号错误！"}, status=status.HTTP_400_BAD_REQUEST)
 
