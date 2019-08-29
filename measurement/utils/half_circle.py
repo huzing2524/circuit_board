@@ -32,7 +32,7 @@ def a_measurement(coordinates, img):
     img_height, img_width = img.shape[0], img.shape[1]
     distance = (img_width - int(a_right[0])) // 3
     # print("distance", distance)
-    return distance, a_right[0]
+    return distance, a_right[0], a_length
 
 
 def b_d_measurement(coordinates, img, distance, a_right_x):
@@ -66,6 +66,8 @@ def b_d_measurement(coordinates, img, distance, a_right_x):
     cv2.line(img, d_top, d_bottom, (255, 0, 0), thickness=2)
     cv2.putText(img, str(d_length), (d_top[0] + 10, d_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
+    return b_length, d_length
+
 
 def c_e_measurement(coordinates, img, distance, a_right_x):
     """上 右边点 c, 下 右边点 e, 正常 半圆环型"""
@@ -84,14 +86,16 @@ def c_e_measurement(coordinates, img, distance, a_right_x):
 
     c_top, c_bottom = tuple(c_e_coordinate_array[index[0]]), tuple(c_e_coordinate_array[index[1]])
     e_top, e_bottom = tuple(c_e_coordinate_array[index[2]]), tuple(c_e_coordinate_array[index[3]])
-    b_length = c_bottom[1] - c_top[1]
-    d_length = e_bottom[1] - e_top[1]
+    c_length = c_bottom[1] - c_top[1]
+    e_length = e_bottom[1] - e_top[1]
 
     cv2.line(img, c_top, c_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(b_length), (c_top[0] + 10, c_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    cv2.putText(img, str(c_length), (c_top[0] + 10, c_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
     cv2.line(img, e_top, e_bottom, (255, 0, 0), thickness=2)
-    cv2.putText(img, str(d_length), (e_top[0] + 10, e_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+    cv2.putText(img, str(e_length), (e_top[0] + 10, e_top[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+    return c_length, e_length
 
 
 def main(image=None):
@@ -127,17 +131,28 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    distance, a_right_x = a_measurement(coordinates, img)
-    b_d_measurement(coordinates, img, distance, a_right_x)
-    c_e_measurement(coordinates, img, distance, a_right_x)
+    distance, a_right_x, a_length = a_measurement(coordinates, img)
+    b_length, d_length = b_d_measurement(coordinates, img, distance, a_right_x)
+    c_length, e_length = c_e_measurement(coordinates, img, distance, a_right_x)
+
+    data = {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length, 'e': e_length}
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

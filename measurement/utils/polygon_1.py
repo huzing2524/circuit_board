@@ -80,7 +80,7 @@ def a_b_c_d_measurement(coordinates, img):
     cv2.putText(img, str(d_length), (d_coordinate_x[0] + 10, d_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    return b_coordinate_y
+    return b_coordinate_y, a_length, b_length, c_length, d_length
 
 
 def e_f_g_h_measurement(coordinates, img, b_coordinate_y, k_coordinate_x):
@@ -137,7 +137,7 @@ def e_f_g_h_measurement(coordinates, img, b_coordinate_y, k_coordinate_x):
     cv2.putText(img, str(h_length), (h_coordinate_x[0] + 70, h_coordinate_x[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    return g_coordinate_y, h_coordinate_x
+    return g_coordinate_y, h_coordinate_x, e_length, f_length, g_length, h_length
 
 
 def i_j_measurement(coordinates, img, g_coordinate_right, h_coordinate_left, k_coordinate_x, l_coordinate_x):
@@ -179,10 +179,13 @@ def i_j_measurement(coordinates, img, g_coordinate_right, h_coordinate_left, k_c
 
     a, b, c = line_equation(j_left[0], j_left[1], j_right[0], j_right[1])
     middle_point_bottom_y = int((- a * middle_point_top[0] - c) / b)
+    i_length = middle_point_bottom_y - middle_point_top[1]
     # print('middle_point_bottom_y', middle_point_bottom_y)
     cv2.line(img, tuple(middle_point_top), (middle_point_top[0], middle_point_bottom_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(middle_point_bottom_y - middle_point_top[1]),
-                (middle_point_top[0] + 10, middle_point_top[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+    cv2.putText(img, str(i_length), (middle_point_top[0] + 10, middle_point_top[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
+
+    return j_length, i_length
 
 
 def k_l_measurement(coordinates, img):
@@ -224,15 +227,13 @@ def k_l_measurement(coordinates, img):
     cv2.putText(img, str(l_length), (l_coordinate_x[0] + 10, l_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    return k_coordinate_x, l_coordinate_x
+    return k_coordinate_x, l_coordinate_x, k_length, l_length
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
-        img = cv2.imread('measurement/template/half_circle_1.jpg')
-        # img = cv2.imread('/home/dsd/Desktop/circuit_board/分类（红线为检测位置)/正常不规则矩形/1565143761.png')
-        # img = cv2.imread('/home/dsd/Desktop/circuit_board/分类（红线为检测位置)/正常不规则矩形/1565143895.png')
+        img = cv2.imread('measurement/template/polygon_1.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -251,27 +252,44 @@ def main(image=None):
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
     # print('coordinates', coordinates)
 
-    b_coordinate_y = a_b_c_d_measurement(coordinates, img)
-    k_coordinate_x, l_coordinate_x = k_l_measurement(coordinates, img)
-    g_coordinate_right, h_coordinate_left = e_f_g_h_measurement(coordinates, img, b_coordinate_y, k_coordinate_x)
-    i_j_measurement(coordinates, img, g_coordinate_right, h_coordinate_left, k_coordinate_x, l_coordinate_x)
+    b_coordinate_y, a_length, b_length, c_length, d_length = a_b_c_d_measurement(coordinates, img)
+    k_coordinate_x, l_coordinate_x, k_length, l_length = k_l_measurement(coordinates, img)
+    g_coordinate_right, h_coordinate_left, e_length, f_length, g_length, h_length = e_f_g_h_measurement(coordinates,
+                                                                                                        img,
+                                                                                                        b_coordinate_y,
+                                                                                                        k_coordinate_x)
+    j_length, i_length = i_j_measurement(coordinates, img, g_coordinate_right, h_coordinate_left, k_coordinate_x,
+                                         l_coordinate_x)
+
+    data = {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length, 'e': e_length, 'f': f_length, 'g': g_length,
+            'h': h_length, 'i': i_length, 'j': j_length, 'k': k_length, 'l': l_length}
+
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
     # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
     # cv2.imshow("img_thresh", img_thresh)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    cv2.imshow("edges", edges)
-    cv2.waitKey(0)
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
 
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
 
     cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

@@ -40,6 +40,8 @@ def a_b_measurement(coordinates, img):
     cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
+    return a_length, b_length
+
 
 def c_d_measurement(coordinates, img):
     """左 上边 c点, 左 下边 d点"""
@@ -77,6 +79,8 @@ def c_d_measurement(coordinates, img):
     cv2.line(img, tuple(d_coordinate_x), tuple(d_coordinate_y), (255, 0, 0), thickness=5)
     cv2.putText(img, str(d_length), (d_coordinate_x[0] + 10, d_coordinate_x[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
+
+    return c_length, d_length
 
 
 def main(image=None):
@@ -138,7 +142,7 @@ def main(image=None):
     #     cv2.circle(img, tuple(c), 2, (255, 0, 0))
 
     # ans = []
-    # # todo 此循环6秒，时间有点长 edges.shape = (1944, 2592)
+    # 此循环6秒，时间有点长 edges.shape = (1944, 2592)
     # for y in range(0, edges.shape[0]):
     #     for x in range(0, edges.shape[1]):
     #         if edges[y, x] != 0:
@@ -149,19 +153,32 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_b_measurement(coordinates, img)
-    c_d_measurement(coordinates, img)
+    a_length, b_length = a_b_measurement(coordinates, img)
+    c_length, d_length = c_d_measurement(coordinates, img)
+
+    data = {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length}
+
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
 
     # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
     # cv2.imshow("edges", edges)
     # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

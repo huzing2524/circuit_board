@@ -72,8 +72,16 @@ def main(image=None):
 
     data = a_b_measurement(coordinates, img)
 
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
+
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
     # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
     # cv2.imshow("img_thresh", img_thresh)
@@ -83,11 +91,11 @@ def main(image=None):
     # cv2.imshow("edges", edges)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
-
-    cv2.destroyAllWindows()
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
+    #
+    # cv2.destroyAllWindows()
 
     return data
 
