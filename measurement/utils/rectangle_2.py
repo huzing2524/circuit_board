@@ -77,11 +77,11 @@ def main(image=None):
     # cv2.imshow("edges", edges)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
 
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
 
     return data
 
