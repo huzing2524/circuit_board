@@ -26,15 +26,19 @@ def a_b_measurement(coordinates, img):
     # print("a_coordinates", a_coordinates)
 
     a_coordinate_x, a_coordinate_y = a_coordinates[1], a_coordinates[2]
+    a_length = a_coordinate_y[1] - a_coordinate_x[1]
     b_coordinate_x, b_coordinate_y = a_coordinates[-3], a_coordinates[-2]
+    b_length = b_coordinate_y[1] - b_coordinate_x[1]
 
     cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(a_coordinate_y[1] - a_coordinate_x[1]),
-                (a_coordinate_x[0] + 10, a_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+    cv2.putText(img, str(a_length), (a_coordinate_x[0] + 10, a_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
 
     cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(b_coordinate_y[1] - b_coordinate_x[1]),
-                (b_coordinate_x[0] + 10, b_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+    cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
+
+    return {'a': a_length, 'b': b_length}
 
 
 def main(image=None):
@@ -56,7 +60,13 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_b_measurement(coordinates, img)
+    data = a_b_measurement(coordinates, img)
+
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
@@ -65,15 +75,17 @@ def main(image=None):
     # cv2.imshow("img_thresh", img_thresh)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    cv2.imshow("edges", edges)
-    cv2.waitKey(0)
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
 
     cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     cv2.imshow("img", img)
     cv2.waitKey(0)
 
     cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

@@ -13,7 +13,7 @@ import os
 
 
 def a_b_measurement(coordinates, img):
-    """上 左边点 a, 上右边点 b"""
+    """上 左边点 a, 上 右边点 b"""
     left = coordinates[coordinates.argmin(axis=0)[0]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
     right = coordinates[coordinates.argmax(axis=0)[0]]
 
@@ -36,7 +36,7 @@ def a_b_measurement(coordinates, img):
     cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    return a_coordinate_y
+    return a_coordinate_y, a_length, b_length
 
 
 def c_d_measurement(coordinates, img, a_coordinate_y, g_coordinate_x):
@@ -73,14 +73,14 @@ def c_d_measurement(coordinates, img, a_coordinate_y, g_coordinate_x):
     cv2.putText(img, str(d_length), (d_coordinate_x[0] + 10, d_coordinate_x[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    return c_coordinate_y, d_coordinate_x
+    return c_coordinate_y, d_coordinate_x, c_length, d_length
 
 
-def e_f_measurement(coordinates, img, c_coordinate_right, d_coordinate_left, g_coordinate_x, h_coordinate_x):
-    """中下 左边点 e, 中下 右边点 f"""
+def e_measurement(coordinates, img, c_coordinate_right, d_coordinate_left, f_coordinate_x, g_coordinate_x):
+    """中下 e"""
     middle_limit = coordinates[numpy.where(
-        (coordinates[:, 1] < g_coordinate_x[1] + 10) & (coordinates[:, 1] > c_coordinate_right[1]) &
-        (coordinates[:, 0] > g_coordinate_x[0]) & (coordinates[:, 0] < h_coordinate_x[0]))]
+        (coordinates[:, 1] < f_coordinate_x[1] + 10) & (coordinates[:, 1] > c_coordinate_right[1]) &
+        (coordinates[:, 0] > f_coordinate_x[0]) & (coordinates[:, 0] < g_coordinate_x[0]))]
     middle_limit_left = middle_limit[numpy.where(middle_limit[:, 0] < c_coordinate_right[0])]
     middle_limit_left_sort = middle_limit_left[middle_limit_left[:, 0].argsort(), :]
     middle_limit_right = middle_limit[numpy.where(middle_limit[:, 0] > d_coordinate_left[0])]
@@ -90,19 +90,21 @@ def e_f_measurement(coordinates, img, c_coordinate_right, d_coordinate_left, g_c
     for l in middle_limit_left_sort:
         left_list.append(l[0] + l[1])
     left_index = left_list.index(max(left_list))
-    j_left = middle_limit_left_sort[left_index]
+    e_left = middle_limit_left_sort[left_index]
 
     for r in middle_limit_right_sort:
         right_list.append(r[0] - r[1])
     right_index = right_list.index(min(right_list))
-    j_right = middle_limit_right_sort[right_index]
+    e_right = middle_limit_right_sort[right_index]
 
-    j_length = j_right[0] - j_left[0]
-    cv2.line(img, tuple(j_left), tuple(j_right), (255, 0, 0), 2)
-    cv2.putText(img, str(j_length), (j_left[0] + 100, j_left[1] + 60), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+    e_length = e_right[0] - e_left[0]
+    cv2.line(img, tuple(e_left), tuple(e_right), (255, 0, 0), 2)
+    cv2.putText(img, str(e_length), (e_left[0] + 100, e_left[1] + 60), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 0, 0), 4)
+
+    return e_length
 
 
-def g_h_measurement(coordinates, img):
+def f_g_measurement(coordinates, img):
     """下 左边点 g, 下 右边点 h"""
     bottom = coordinates[coordinates.argmax(axis=0)[1]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
     width_coordinate = coordinates[numpy.where(coordinates[:, 0] == bottom[0])][::-1]
@@ -123,7 +125,16 @@ def g_h_measurement(coordinates, img):
     bottom_right = coordinates_limit[coordinates_limit.argmax(axis=0)[0]]
     # print("bottom_left", bottom_left, "bottom_right", bottom_right)
     bottom_length = bottom_right[0] - bottom_left[0]
-    g_x = bottom_left[0] + bottom_length // 8
+    f_x = bottom_left[0] + bottom_length // 8
+    f_coordinate = coordinates_limit[numpy.where(coordinates_limit[:, 0] == f_x)]
+    # print("f_coordinate", f_coordinate)
+    f_coordinate_x, f_coordinate_y = f_coordinate[0], f_coordinate[-1]
+    f_length = f_coordinate_y[1] - f_coordinate_x[1]
+    cv2.line(img, tuple(f_coordinate_x), tuple(f_coordinate_y), (255, 0, 0), thickness=4)
+    cv2.putText(img, str(f_length), (f_coordinate_x[0] + 10, f_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255, 0, 0), 4)
+
+    g_x = bottom_left[0] + int(bottom_length / 8 * 7)
     g_coordinate = coordinates_limit[numpy.where(coordinates_limit[:, 0] == g_x)]
     # print("g_coordinate", g_coordinate)
     g_coordinate_x, g_coordinate_y = g_coordinate[0], g_coordinate[-1]
@@ -132,16 +143,7 @@ def g_h_measurement(coordinates, img):
     cv2.putText(img, str(g_length), (g_coordinate_x[0] + 10, g_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
                 (255, 0, 0), 4)
 
-    h_x = bottom_left[0] + int(bottom_length / 8 * 7)
-    h_coordinate = coordinates_limit[numpy.where(coordinates_limit[:, 0] == h_x)]
-    # print("h_coordinate", h_coordinate)
-    h_coordinate_x, h_coordinate_y = h_coordinate[0], h_coordinate[-1]
-    h_length = h_coordinate_y[1] - h_coordinate_x[1]
-    cv2.line(img, tuple(h_coordinate_x), tuple(h_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(h_length), (h_coordinate_x[0] + 10, h_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    return g_coordinate_x, h_coordinate_x
+    return f_coordinate_x, g_coordinate_x, f_length, g_length
 
 
 def main(image=None):
@@ -162,23 +164,36 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_coordinate_y = a_b_measurement(coordinates, img)
-    g_coordinate_x, h_coordinate_x = g_h_measurement(coordinates, img)
-    c_coordinate_y, d_coordinate_x = c_d_measurement(coordinates, img, a_coordinate_y, g_coordinate_x)
-    e_f_measurement(coordinates, img, c_coordinate_y, d_coordinate_x, g_coordinate_x, h_coordinate_x)
+    a_coordinate_y, a_length, b_length = a_b_measurement(coordinates, img)
+    f_coordinate_x, g_coordinate_x, f_length, g_length = f_g_measurement(coordinates, img)
+    c_coordinate_y, d_coordinate_x, c_length, d_length = c_d_measurement(coordinates, img, a_coordinate_y,
+                                                                         g_coordinate_x)
+    e_length = e_measurement(coordinates, img, c_coordinate_y, d_coordinate_x, f_coordinate_x, g_coordinate_x)
+
+    data = {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length, 'e': e_length, 'f': f_length, 'g': g_length}
+
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
-    cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    cv2.imshow("edges", edges)
-    cv2.waitKey(0)
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
 
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
+
+    return data
 
 
 if __name__ == '__main__':

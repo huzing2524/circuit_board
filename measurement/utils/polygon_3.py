@@ -49,27 +49,29 @@ def main(image=None):
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
 
-    cv2.namedWindow('img_hsv', cv2.WINDOW_NORMAL)
-    cv2.imshow("img_hsv", img_hsv)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img_hsv', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img_hsv", img_hsv)
+    # cv2.waitKey(0)
 
-    cv2.namedWindow('mask', cv2.WINDOW_NORMAL)
-    cv2.imshow("mask", mask)
-    cv2.waitKey(0)
+    # cv2.namedWindow('mask', cv2.WINDOW_NORMAL)
+    # cv2.imshow("mask", mask)
+    # cv2.waitKey(0)
 
-    cv2.namedWindow('res', cv2.WINDOW_NORMAL)
-    cv2.imshow("res", res)
-    cv2.waitKey(0)
+    # cv2.namedWindow('res', cv2.WINDOW_NORMAL)
+    # cv2.imshow("res", res)
+    # cv2.waitKey(0)
 
-    cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    cv2.imshow("edges", edges)
-    cv2.waitKey(0)
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
 
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
+
+    return {}
 
 
 if __name__ == '__main__':

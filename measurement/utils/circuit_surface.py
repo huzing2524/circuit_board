@@ -84,7 +84,7 @@ def a_b_c_d_measurement(coordinates, img):
     # cv2.imshow("cut_img", cut_img)
     # cv2.waitKey(0)
 
-    return a_length, b_length, c_length, d_length
+    return {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length}
 
 
 def main(image=None):
@@ -105,10 +105,18 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    a_length, b_length, c_length, d_length = a_b_c_d_measurement(coordinates, img)
+    data = a_b_c_d_measurement(coordinates, img)
+
+    result_name = uuid.uuid1()
+    cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
+    with open('measurement/images/{}.jpg'.format(result_name), 'rb') as f:
+        base64_img = base64.b64encode(f.read())
+    data.update({'image': base64_img})
 
     if os.path.exists('measurement/images/{}.jpg'.format(img_name)):
         os.remove('measurement/images/{}.jpg'.format(img_name))
+    if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
+        os.remove('measurement/images/{}.jpg'.format(result_name))
 
     # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
     # cv2.imshow("img_thresh", img_thresh)
@@ -121,10 +129,10 @@ def main(image=None):
     # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     # cv2.imshow("img", img)
     # cv2.waitKey(0)
-
+    #
     # cv2.destroyAllWindows()
 
-    return {"a": a_length, "b": b_length, "c": c_length, "d": d_length, "image": img}
+    return data
 
 
 if __name__ == '__main__':
