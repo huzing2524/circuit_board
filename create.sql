@@ -1,6 +1,7 @@
 create table circuit_board (
-  uuid varchar(36) primary key default uuid_generate_v4(),
+  id serial primary key,
   shape varchar(10),
-  x_location varchar(30),
-  y_location varchar(30)
+  x_location float,
+  y_location float,
+  direction varchar(1) -- 0: 竖直, 1: 水平
 );

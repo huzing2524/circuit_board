@@ -20,5 +20,7 @@ from measurement import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('measurement', views.Measurement.as_view())
+    path('measurement', views.Measurement.as_view()),
+    path('add_template', views.AddTemplate.as_vies()),
+    path('delete_template', views.DeleteTemplate.as_view())
 ]
