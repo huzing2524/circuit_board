@@ -1,0 +1,98 @@
+/measurement:
+  post:
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            image:
+              type: string
+              description: 'image data(base64 encode)'
+      - name: shape
+        in: query
+        required: true
+        type: string
+        description: 'one particular shape of the image'
+
+
+    responses:
+      200:
+        description: OK
+
+/add_template:
+  post:
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            shape:
+              type: string
+              description: 'one particular shape of the image'
+            image:
+              type: string
+              description: 'image data(base64 encode)'
+            direction:
+              type: string
+              description: '0: vertical measurements, 1: horizontal measurements'
+            coordinates:
+              type: array
+              description: 'rectangle coordinates drawn by user.
+               [(top_left_x, top_left_y), (bottom_right_x, bottom_right_y)]'
+              items:
+                type: integer
+              example: [[100, 200], [100, 300]]
+
+    responses:
+      200:
+        description: OK
+        schema:
+          type: object
+          properties:
+            measurements_data:
+              type: array
+              description: 'measurements data'
+              example: {
+                  "A_max": 59,
+                  "A_min": 17,
+                  "A_mean": 40
+                },
+                {
+                  "B_max": 65,
+                  "B_min": 40,
+                  "B_mean": 52
+                },
+                {
+                  "C_max": 96,
+                  "C_min": 80,
+                  "C_mean": 85
+                }
+              items:
+                properties:
+                  A_max:
+                    type: integer
+                    description: 'max measurement result for area A'
+                  A_min:
+                    type: integer
+                    description: 'min measurement result for area A'
+                  A_mean:
+                    type: integer
+                    description: 'mean measurement result for area A'
+            image:
+              type: string
+              description: 'image data(base64 encode)'
+
+/delete_template:
+  delete:
+    parameters:
+      - name: body
+        in: body
+        schema:
+          properties:
+            shape:
+              type: string
+              description: 'one particular shape of the image'
+
+    responses:
+      200:
+        description: OK

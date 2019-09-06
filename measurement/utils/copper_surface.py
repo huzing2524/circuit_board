@@ -8,9 +8,49 @@ import numpy
 import uuid
 import base64
 import os
+from django.db import connection
 
 
-def a_b_measurement(coordinates, img):
+def get_origin_point(coordinates):
+    """ 左下角的点 """
+    x, y = coordinates[0]
+    for i in coordinates:
+        if i[0] - i[1] < x - y:
+            x, y = i
+    return x, y
+
+
+def get_template():
+    """ 获取形状对应的模版，测量类型
+        shape： 14
+    """
+    # 1920 2560
+    # origin_point (0, 203)
+    # 裁剪地方：945 1201
+    # 上方框
+    # ""x"":565,""y"":907,""width"":458,""height"":162
+    # "x"":1491,""y"":1095,""width"":466,""height"":143
+    # template = [{'relation': [(0.220703125, -0.12552083333333333), (0.399609375, -0.04114583333333333)],
+    #              'type': 0},
+    #             {'relation': [(0.582421875, -0.027604166666666666), (0.764453125, 0.046875)],
+    #              'type': 1}]
+    cursor = connection.cursor()
+    cursor.execute("select name, top_left, bottom_right, direction from templates where shape = '14';")
+    target = ['name', 'top_left', 'bottom_right', 'direction']
+    data = cursor.fetchall()
+    result = [dict(zip(target, i)) for i in data]
+
+    # result = list()
+    # result.append({'name': '1', 'top_left': (0.220703125, -0.12552083333333333),
+    #                'bottom_right': (0.399609375, -0.04114583333333333),
+    #                'direction': '0'})
+    # result.append({'name': '1', 'top_left': (0.582421875, -0.027604166666666666),
+    #                'bottom_right': (0.764453125, 0.046875),
+    #                'direction': '1'})
+    return result
+
+
+def measurement(coordinates, template, img):
     """"""
     height, width, dimension = img.shape
     left = coordinates[coordinates.argmin(axis=0)[0]]
@@ -32,34 +72,85 @@ def a_b_measurement(coordinates, img):
     cut_coordinates = numpy.array(list(zip(cut_indices[1], cut_indices[0])))
     # print("cut_coordinates", cut_coordinates)
 
-    middle = width // 2
-    middle_coordinates = cut_coordinates[numpy.where(cut_coordinates[:, 0] == middle)]
-    # print("middle_coordinates", middle_coordinates)
+    origin_point = get_origin_point(cut_coordinates)
+    point_1, point_2 = template['top_left'], template['bottom_right']
+    x_scale = (int(point_1[0] * width + origin_point[0]), int(point_2[0] * width + origin_point[0]))
+    y_scale = (int(point_1[1] * height + origin_point[1]), int(point_2[1] * height + origin_point[1]))
 
-    origin_middle_array = coordinates[numpy.where(coordinates[:, 0] == middle)]
-    a_top = origin_middle_array[1]
-    a_bottom = numpy.array([a_top[0], middle_coordinates[0][1] + a_top[1]])
-    a_length = str(a_bottom[1] - a_top[1])
-    b_bottom = origin_middle_array[2]
-    b_top = numpy.array([b_bottom[0], b_bottom[1] - ((left_array[2][1] - left_array[1][1]) - middle_coordinates[1][1])])
-    b_length = str(b_bottom[1] - b_top[1])
-    # print("a_top", a_top, "a_bottom", a_bottom), print("b_top", b_top, "b_bottom", b_bottom)
+    if template['direction'] == '0':
+        # 上部
+        coordinates = cut_coordinates[numpy.where((y_scale[0] < cut_coordinates[:, 1]) & (cut_coordinates[:, 1] <= y_scale[1]))]
 
-    cv2.line(img, tuple(a_top), tuple(a_bottom), (0, 255, 0), thickness=4)
-    cv2.putText(img, a_length, (a_top[0] + 10, a_top[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (0, 255, 0), 4)
+        y_array = list()
+        y_list = list()
+        for x in range(x_scale[0], x_scale[1]):
+            y_points = coordinates[numpy.where(coordinates[:, 0] == x)]
+            y_array.append([[x, 0], [x, y_points[-1][1]]])
+            y_list.append(int(y_points[-1][1]))
 
-    cv2.line(img, tuple(b_top), tuple(b_bottom), (0, 255, 0), thickness=4)
-    cv2.putText(img, b_length, (b_top[0] + 10, b_top[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (0, 255, 0), 4)
+        max_length = max(y_list)
+        max_length_x = y_list.index(max_length)
+        max_coordinates = y_array[max_length_x]
+        max_coordinates[0][1] += left_array[1][1]
+        max_coordinates[-1][1] += left_array[1][1]
+        max_coordinates_top, b_max_coordinates_bottom = max_coordinates[0], max_coordinates[-1]
+        cv2.line(img, tuple(max_coordinates_top), tuple(b_max_coordinates_bottom), (0, 255, 0), thickness=2)
+        cv2.putText(img, '{} max {}'.format(template['name'], max_length), (max_coordinates_top[0] + 10, max_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    return {"a": a_length, "b": b_length}
+        min_length = min(y_list)
+        min_length_x = y_list.index(min_length)
+        min_coordinates = y_array[min_length_x]
+        min_coordinates[0][1] += left_array[1][1]
+        min_coordinates[-1][1] += left_array[1][1]
+        min_coordinates_top, min_coordinates_bottom = min_coordinates[0], min_coordinates[-1]
+        cv2.line(img, tuple(min_coordinates_top), tuple(min_coordinates_bottom), (0, 255, 0), thickness=2)
+        cv2.putText(img, '{} min {}'.format(template['name'], min_length), (min_coordinates_top[0] - 130, min_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        mean_length = sum(y_list) // len(y_list)
+    else:
+        # 下部
+        coordinates = cut_coordinates[
+            numpy.where((y_scale[0] < cut_coordinates[:, 1]) & (cut_coordinates[:, 1] <= y_scale[1]))]
+
+        y_array = list()
+        y_list = list()
+        for x in range(x_scale[0], x_scale[1]):
+            y_points = coordinates[numpy.where(coordinates[:, 0] == x)]
+            y_length = left_array[2][1] - left_array[1][1] - int(y_points[0][1])
+            y_array.append([[x, y_points[-1][1]], [x, left_array[2][1] - left_array[1][1]]])
+            y_list.append(y_length)
+
+        max_length = max(y_list)
+        max_length_x = y_list.index(max_length)
+        max_coordinates = y_array[max_length_x]
+        max_coordinates[0][1] += left_array[1][1]
+        max_coordinates[-1][1] += left_array[1][1]
+        max_coordinates_top, b_max_coordinates_bottom = max_coordinates[0], max_coordinates[-1]
+        cv2.line(img, tuple(max_coordinates_top), tuple(b_max_coordinates_bottom), (0, 255, 0), thickness=2)
+        cv2.putText(img, '{} max {}'.format(template['name'], max_length), (max_coordinates_top[0] + 10, max_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        min_length = min(y_list)
+        min_length_x = y_list.index(min_length)
+        min_coordinates = y_array[min_length_x]
+        min_coordinates[0][1] += left_array[1][1]
+        min_coordinates[-1][1] += left_array[1][1]
+        min_coordinates_top, min_coordinates_bottom = min_coordinates[0], min_coordinates[-1]
+        cv2.line(img, tuple(min_coordinates_top), tuple(min_coordinates_bottom), (0, 255, 0), thickness=2)
+        cv2.putText(img, '{} min {}'.format(template['name'], min_length), (min_coordinates_top[0] - 130, min_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        mean_length = sum(y_list) // len(y_list)
+    return {'{}_max'.format(template['name']): max_length,
+            '{}_min'.format(template['name']): min_length,
+            '{}_mean'.format(template['name']): mean_length}
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
         img = cv2.imread('measurement/template/copper_surface.jpg')
+        # img = cv2.imread('/Users/jichengjian/工作相关/大数点/光学电路板铜厚测量/jichengjian/circuit_board/measurement/template/copper_surface.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -74,7 +165,11 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    data = a_b_measurement(coordinates, img)
+    data = dict()
+    data['measurements_data'] = list()
+    template = get_template()
+    for i in template:
+        data['measurements_data'].append(measurement(coordinates, i, img))
 
     result_name = uuid.uuid1()
     cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)

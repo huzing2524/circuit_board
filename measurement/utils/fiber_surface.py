@@ -3,53 +3,106 @@
 # @Author : huziying
 # @File   : fiber_surface.py
 
+import os
 import cv2
 import numpy
 import uuid
 import base64
-import os
+from django.db import connection
 
 
-def a_b_measurement(coordinates, img):
+def get_origin_point(coordinates):
+    """ 获取形状左上角的点 """
+    x, y = coordinates[0]
+    for i in coordinates:
+        if i[0] + i[1] < x + y:
+            x, y = i
+    return x, y
+
+
+def get_template():
+    """ 获取形状对应的模版，测量类型
+        shape： 13
+    """
+    # (0, 212)
+    # (1920, 2560, 3)
+    # ""x"":517,""y"":210,""width"":415,""height"":121}","{}"
+    # ""x"":1564,""y"":218,""width"":482,""height"":121}","{}"
+    # ""x"":468,""y"":1486,""width"":482,""height"":210}","{}"
+    # ""x"":1979,""y"":1491,""width"":328,""height"":186}","{}"
+    cursor = connection.cursor()
+    cursor.execute("select name, top_left, bottom_right, direction from templates where shape = '13';")
+    target = ['name', 'top_left', 'bottom_right', 'direction']
+    data = cursor.fetchall()
+    result = [dict(zip(target, i)) for i in data]
+
+    # result = list()
+    # result.append({'name': '1', 'top_left': (0.201953125, -0.0010416666666666667),
+    #                'bottom_right': (0.3640625, 0.06197916666666667),
+    #                'direction': '0'})
+    # result.append({'name': '2', 'top_left': (0.6109375, 0.003125),
+    #                'bottom_right': (0.79921875, 0.06614583333333333),
+    #                'direction': '0'})
+    # result.append({'name': '3', 'top_left': (0.1828125, 0.6635416666666667),
+    #                'bottom_right': (0.37109375, 0.7729166666666667),
+    #                'direction': '0'})
+    # result.append({'name': '4', 'top_left': (0.773046875, 0.6661458333333333),
+    #                'bottom_right': (0.901171875, 0.7630208333333334),
+    #                'direction': '0'})
+    return result
+
+
+def measurement(coordinates, template, img):
     """"""
-    height, width, dimension = img.shape
-    a_x = width // 2
-    a_array = coordinates[numpy.where(coordinates[:, 0] == a_x)]
-    # print("a_array", a_array)
+    origin_point = get_origin_point(coordinates)
 
-    temp_list = list()
-    for index in range(len(a_array)):
-        if a_array[index + 1][1] - a_array[index][1] > 300:
-            temp_list.append(index)
-            break
-    a_array_reverse = a_array[::-1]
-    for index in range(len(a_array_reverse)):
-        if (a_array_reverse[index][1] - a_array_reverse[index + 1][1] > 30) and \
-                (a_array_reverse[index][1] - a_array_reverse[index + 1][1] < 200):
-            temp_list.append(index + 1)
-            break
-    # print("temp_list", temp_list)
+    img_size = img.shape
+    # print(img_size)
+    point_1, point_2 = template['top_left'], template['bottom_right']
+    x_scale = (int(point_1[0] * img_size[1] + origin_point[0]), int(point_2[0] * img_size[1] + origin_point[0]))
+    y_scale = (int(point_1[1] * img_size[0] + origin_point[1]), int(point_2[1] * img_size[0] + origin_point[1]))
 
-    a_coordinate_x, a_coordinate_y = a_array[0], a_array[temp_list[0]]
-    b_coordinate_x, b_coordinate_y = a_array_reverse[temp_list[1]], a_array[-1]
+    # if template['direction'] == '0':
+    # 只有竖直宽度
+    coordinates = coordinates[numpy.where((y_scale[0] < coordinates[:, 1]) & (coordinates[:, 1] < y_scale[1]))]
+    y_list = list()
+    for x in range(x_scale[0], x_scale[1]):
+        y_array = coordinates[numpy.where(coordinates[:, 0] == x)]
+        y_length = int(y_array[-1][1]) - int(y_array[0][1])
+        if len(y_array) > 1 and y_length > 10:
+            y_list.append(y_length)
+        else:
+            y_list.append(-1)
+    max_length = max(y_list)
+    max_length_x = y_list.index(max_length) + x_scale[0]
+    max_coordinates = coordinates[numpy.where(coordinates[:, 0] == max_length_x)]
+    max_coordinates_top, b_max_coordinates_bottom = max_coordinates[0], max_coordinates[-1]
+    cv2.line(img, tuple(max_coordinates_top), tuple(b_max_coordinates_bottom), (255, 0, 0), thickness=2)
+    cv2.putText(img, '{} max {}'.format(template['name'], max_length), (max_coordinates_top[0] + 10,
+                                                                        max_coordinates_top[1] + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
-    a_length = a_coordinate_y[1] - a_coordinate_x[1]
-    b_length = b_coordinate_y[1] - b_coordinate_x[1]
+    min_length = min([i for i in y_list if i > 0])
+    min_length_x = y_list.index(min_length) + x_scale[0]
+    min_coordinates = coordinates[numpy.where(coordinates[:, 0] == min_length_x)]
+    min_coordinates_top, min_coordinates_bottom = min_coordinates[0], min_coordinates[-1]
+    # print(min_coordinates_top, min_coordinates_bottom)
+    cv2.line(img, tuple(min_coordinates_top), tuple(min_coordinates_bottom), (255, 0, 0), thickness=2)
+    cv2.putText(img, '{} min {}'.format(template['name'], min_length), (min_coordinates_top[0] - 130,
+                                                                        min_coordinates_top[1] + 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+    mean_length = sum(y_list) // len(y_list)
 
-    cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(a_length), (a_coordinate_x[0] + 10, a_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-    cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 50), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    return {'a': a_length, 'b': b_length}
+    return {'{}_max'.format(template['name']): max_length,
+            '{}_min'.format(template['name']): min_length,
+            '{}_mean'.format(template['name']): mean_length}
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
         img = cv2.imread('measurement/template/fiber_surface.jpg')
+        # img = cv2.imread('/Users/jichengjian/工作相关/大数点/光学电路板铜厚测量/jichengjian/circuit_board/measurement/template/fiber_surface.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -72,7 +125,11 @@ def main(image=None):
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
-    data = a_b_measurement(coordinates, img)
+    template = get_template()
+    data = dict()
+    data['measurements_data'] = list()
+    for i in template:
+        data['measurements_data'].append(measurement(coordinates, i, img))
 
     result_name = uuid.uuid1()
     cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
@@ -86,7 +143,7 @@ def main(image=None):
         os.remove('measurement/images/{}.jpg'.format(result_name))
 
     # cv2.namedWindow('res', cv2.WINDOW_NORMAL)
-    # cv2.imshow("res", res)
+    # cv2.imshow("res", edges)
     # cv2.waitKey(0)
 
     # cv2.namedWindow('img', cv2.WINDOW_NORMAL)

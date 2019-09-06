@@ -1,162 +1,180 @@
 # -*- coding: utf-8 -*-
-# @Time   : 19-8-8 下午3:31
+# @Time   : 19-8-22 上午10:29
 # @Author : huziying
 # @File   : rectangle_1.py
 
-# 正常不规则形状 矩形: 噪点非常多
-
-import cv2
-import numpy
-import uuid
-import base64
 import os
+import cv2
+import uuid
+import numpy
+import base64
+from django.db import connection
 
-numpy.set_printoptions(threshold=numpy.inf)
+'''
+流程：
+    1、从数据库中取出对应形状的全部模版
+    2、开启循环，对每个模版进行测量
+        测量：
+            1、过滤找到轮廓，及相对坐标原点（如最左边）
+            2、将查到的模版 * 图片尺寸 + 坐标原点 = 目标范围
+            3、遍历范围内部求出最大值、最小值、平均值及相似位置处的值
+    3、测量结束后，将结果返回
 
-
-def a_b_measurement(coordinates, img):
-    """上 左边 a点, 上 右边 b点"""
-    left = coordinates[coordinates.argmin(axis=0)[0]]  # 返回沿轴axis最大/小值的索引, 0代表列, 1代表行
-    right = coordinates[coordinates.argmax(axis=0)[0]]
-    # print('left, right', left, right)
-    width = right[0] - left[0]  # 整个形状宽度
-
-    a_x = left[0] + width // 3
-    # print('a_x', a_x)
-    a_coordinate = coordinates[numpy.where(coordinates[:, 0] == a_x)]
-    # print(a_coordinate)
-    a_coordinate_x, a_coordinate_y = a_coordinate[0], a_coordinate[-1]
-    a_length = a_coordinate_y[1] - a_coordinate_x[1]
-    cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=5)
-    cv2.putText(img, str(a_length), (a_coordinate_x[0] + 10, a_coordinate_x[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    b_x = left[0] + width // 3 * 2
-    b_coordinate = coordinates[numpy.where(coordinates[:, 0] == b_x)]
-    # print(b_coordinate)
-    b_coordinate_x, b_coordinate_y = b_coordinate[0], b_coordinate[-1]
-    b_length = b_coordinate_y[1] - b_coordinate_x[1]
-    cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=5)
-    cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    return a_length, b_length
+测试：
+    给定模版数据，输入新图片，看返回结果
+'''
+'''
+vgg 左上点
+----------->x(width)
+|
+|
+|
+y(height)
+'''
 
 
-def c_d_measurement(coordinates, img):
-    """左 上边 c点, 左 下边 d点"""
-    top = coordinates[coordinates.argmin(axis=0)[1]]
-    bottom = coordinates[coordinates.argmax(axis=0)[1]]
-    # print(top, bottom)
-    height = bottom[1] - top[1]  # 整个形状高度
+def show_image(img):
+    # 设置为WINDOW_NORMAL可以任意缩放
+    cv2.namedWindow('window_name', cv2.WINDOW_NORMAL)
+    cv2.imshow("window_name", img)
+    # 等待按键（点窗口叉号是没用的）
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
-    c_y = top[1] + height // 3
-    c_coordinate = coordinates[numpy.where(coordinates[:, 1] == c_y)]
-    c_coordinate_list = c_coordinate[:, 0]
-    c_temp_list = list()
-    for index in range(len(c_coordinate_list)):
-        if c_coordinate_list[index + 1] - c_coordinate_list[index] > 1000:
-            c_temp_list.append(index)
-            break
-    c_coordinate_x, c_coordinate_y = c_coordinate[0], c_coordinate[c_temp_list[0]]
-    c_length = c_coordinate_y[0] - c_coordinate_x[0]
-    cv2.line(img, tuple(c_coordinate_x), tuple(c_coordinate_y), (255, 0, 0), thickness=5)
-    cv2.putText(img, str(c_length), (c_coordinate_x[0] + 10, c_coordinate_x[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
 
-    d_y = top[1] + height // 3 * 2
-    d_coordinate = coordinates[numpy.where(coordinates[:, 1] == d_y)]
-    # print('d_coordinate', d_coordinate)
-    d_coordinate_list = d_coordinate[:, 0]
-    d_temp_list = list()
-    for index in range(len(d_coordinate_list)):
-        if d_coordinate_list[index + 1] - d_coordinate_list[index] > 1000:
-            # print('loop', d_coordinate_list[index + 1], d_coordinate_list[index], index)
-            d_temp_list.append(index)
-            break
-    d_coordinate_x, d_coordinate_y = d_coordinate[0], d_coordinate[d_temp_list[0]]
-    d_length = d_coordinate_y[0] - d_coordinate_x[0]
-    cv2.line(img, tuple(d_coordinate_x), tuple(d_coordinate_y), (255, 0, 0), thickness=5)
-    cv2.putText(img, str(d_length), (d_coordinate_x[0] + 10, d_coordinate_x[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
+def get_template():
+    """ 获取形状对应的模版，测量类型
+        shape： 2
+    """
+    # 上方框
+    # template = [[(0.14853395061728394, -0.08590534979423868), (0.3734567901234568, 0.09619341563786009)],
+    #             [(0.49344135802469136, -0.08436213991769548), (0.7762345679012346, 0.09927983539094651)]]
+    # 左方框
+    # template = [[(-0.08179012345679013, 0.12191358024691358), (0.13580246913580246, 0.4207818930041152)],
+    #             [(-0.08680555555555555, 0.48199588477366256), (0.13194444444444445, 0.73559670781893)]]
+    cursor = connection.cursor()
+    cursor.execute("select name, top_left, bottom_right, direction from templates where shape = '2';")
+    target = ['name', 'top_left', 'bottom_right', 'direction']
+    data = cursor.fetchall()
+    result = [dict(zip(target, i)) for i in data]
+    # result = list()
+    # result.append({'name': '1', 'top_left': (0.14853395061728394, -0.08590534979423868),
+    #                'bottom_right': (0.3734567901234568, 0.09619341563786009),
+    #                'direction': '0'})
+    # result.append({'name': '1', 'top_left': (0.49344135802469136, -0.08436213991769548),
+    #                'bottom_right': (0.7762345679012346, 0.09927983539094651),
+    #                'direction': '0'})
+    return result
 
-    return c_length, d_length
+
+def get_left_upper(coordinates):
+    """ 获取形状左上角的点 """
+    x, y = coordinates[0]
+    for i in coordinates:
+        if i[0] + i[1] < x + y:
+            x, y = i
+    return x, y
+
+
+def measurement(coordinates, template, img):
+    """ 获取模版对应的区域
+        template: 即模版，两个点左上和右下
+        img_size：图片尺寸，height, width
+    """
+    origin_point = get_left_upper(coordinates)
+
+    point_1, point_2 = template['top_left'], template['bottom_right']
+    img_size = img.shape
+    x_scale = (int(point_1[0] * img_size[1] + origin_point[0]), int(point_2[0] * img_size[1] + origin_point[0]))
+    y_scale = (int(point_1[1] * img_size[0] + origin_point[1]), int(point_2[1] * img_size[0] + origin_point[1]))
+    if template['direction'] == '0':
+        # 竖直宽度
+        coordinates = coordinates[numpy.where((y_scale[0] < coordinates[:, 1]) & (coordinates[:, 1] < y_scale[1]))]
+        y_list = list()
+        for x in range(x_scale[0], x_scale[1]):
+            y_array = coordinates[numpy.where(coordinates[:, 0] == x)]
+            if len(y_array) > 1:
+                y_list.append(int(y_array[-1][1]) - int(y_array[0][1]))
+
+        max_length = max(y_list)
+        max_length_x = y_list.index(max_length) + x_scale[0]
+        max_coordinates = coordinates[numpy.where(coordinates[:, 0] == max_length_x)]
+        max_coordinates_top, b_max_coordinates_bottom = max_coordinates[0], max_coordinates[1]
+        cv2.line(img, tuple(max_coordinates_top), tuple(b_max_coordinates_bottom), (255, 0, 0), thickness=2)
+        cv2.putText(img, '{} max {}'.format(template['name'], max_length), (max_coordinates_top[0] + 10,
+                                                                            max_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+
+        min_length = min(y_list)
+        min_length_x = y_list.index(min_length) + x_scale[0]
+        min_coordinates = coordinates[numpy.where(coordinates[:, 0] == min_length_x)]
+        min_coordinates_top, min_coordinates_bottom = min_coordinates[0], min_coordinates[-1]
+        cv2.line(img, tuple(min_coordinates_top), tuple(min_coordinates_bottom), (255, 0, 0), thickness=2)
+        cv2.putText(img, '{} min {}'.format(template['name'], min_length), (min_coordinates_top[0] - 130,
+                                                                            min_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+        mean_length = sum(y_list) // len(y_list)
+    else:
+        # 水平宽度
+        coordinates = coordinates[numpy.where((x_scale[0] < coordinates[:, 0]) & (coordinates[:, 0] < x_scale[1]))]
+        x_list = list()
+        for y in range(y_scale[0], y_scale[1]):
+            x_array = coordinates[numpy.where(coordinates[:, 1] == y)]
+            if len(x_array) > 1:
+                x_list.append(int(x_array[-1][0]) - int(x_array[0][0]))
+            else:
+                x_list.append(-1)
+        max_length = max(x_list)
+        max_length_y = x_list.index(max_length) + y_scale[0]
+        max_coordinates = coordinates[numpy.where(coordinates[:, 1] == max_length_y)]
+        max_coordinates_top, max_coordinates_bottom = max_coordinates[0], max_coordinates[1]
+        cv2.line(img, tuple(max_coordinates_top), tuple(max_coordinates_bottom), (255, 0, 0), thickness=2)
+        cv2.putText(img, '{} max {}'.format(template['name'], max_length), (max_coordinates_top[0] + 10,
+                                                                            max_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+
+        min_length = min([i for i in x_list if i > 0])
+        min_length_y = x_list.index(min_length) + y_scale[0]
+        min_coordinates = coordinates[numpy.where(coordinates[:, 1] == min_length_y)]
+        min_coordinates_top, min_coordinates_bottom = min_coordinates[0], min_coordinates[-1]
+        cv2.line(img, tuple(min_coordinates_top), tuple(min_coordinates_bottom), (255, 0, 0), thickness=2)
+        cv2.putText(img, '{} min {}'.format(template['name'], min_length), (min_coordinates_top[0] - 130,
+                                                                            min_coordinates_top[1] + 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+        mean_length = sum(x_list) // len(x_list)
+    return {'{}_max'.format(template['name']): max_length,
+            '{}_min'.format(template['name']): min_length,
+            '{}_mean'.format(template['name']): mean_length}
 
 
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
         img = cv2.imread('measurement/template/rectangle_1.jpg')
+        # img = cv2.imread('/Users/jichengjian/工作相关/大数点/光学电路板铜厚测量/jichengjian/circuit_board/measurement/template/rectangle_1.jpg')
     else:
         receive = base64.b64decode(image)
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
+    template = get_template()
+    if not template:
+        return {'measurements_data': [], 'image': image}
+
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # img_blurred = cv2.GaussianBlur(img_gray, (85, 85), 0)
-    # img_blurred = cv2.GaussianBlur(img_gray, (15, 15), 0)
     img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
     img_thresh = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
     edges = cv2.Canny(img_thresh, 200, 400, 3)  # shape (1944, 2592)
-
-    # cv2.namedWindow('img_thresh', cv2.WINDOW_NORMAL)
-    # cv2.imshow("img_thresh", img_thresh)
-    # cv2.waitKey(0)
-    #
-    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    # cv2.imshow("edges", edges)
-    # cv2.waitKey(0)
-
-    """
-    cv2.findContours()
-    contours: 类型是list，contours 中每个元素都是图像中的一个轮廓，用 numpy 中的 ndarray 表示。
-              轮廓中并不是存储轮廓上所有点，而是只存储可以用直线描述轮廓的点的个数，比如一个矩形只需要 4 个顶点就可以描述轮廓。
-    hierarchy: 这是一个 ndarray，其中元素个数和轮廓个数相同，每个轮廓 contours[i] 对应 4 个 hierarchy 元素 
-               hierarchy[i][0] ~ hierarchy[i][3]，分别表示后一个轮廓、前一个轮廓、父轮廓、内嵌轮廓的索引编号，如果没有对应项，则该值为负数。
-    """
-    # contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    # cv2.drawContours(img, ans, -1, (0, 0, 255), 3)
-    # print(type(contours)), print(contours)
-    # temp_list = [c.shape[0] for c in contours]
-    # index = temp_list.index(max(temp_list))
-    # max_contour = contours[index]
-    # print(max_contour)
-    # contours = numpy.reshape(max_contour, (max_contour.shape[0], max_contour.shape[-1]))
-    # for c in contours:
-    #     cv2.circle(img, tuple(c), 4, (255, 0, 0))
-
-    """凸包 cv2.convexHull()"""
-    # hull = cv2.convexHull(max_contour)
-    # length = len(hull)
-    # print(length)
-    # for i in range(length):
-    #     cv2.line(img, tuple(hull[i][0]), tuple(hull[(i + 1) % length][0]), (0, 0, 255), 2)
-
-    # indices = numpy.where(edges != [0])
-    # print('indices', indices)
-    # coordinates = numpy.array(list(zip(indices[0], indices[1])))
-    # print(coordinates)
-    # for c in coordinates:
-    #     cv2.circle(img, tuple(c), 2, (255, 0, 0))
-
-    # ans = []
-    # 此循环6秒，时间有点长 edges.shape = (1944, 2592)
-    # for y in range(0, edges.shape[0]):
-    #     for x in range(0, edges.shape[1]):
-    #         if edges[y, x] != 0:
-    #             ans += [[x, y]]
-    # ans = numpy.array(ans)  # shape (9297, 2)
-
-    # 0.018883943557739258 秒
     indices = numpy.where(edges != [0])
     coordinates = numpy.array(list(zip(indices[1], indices[0])))
+    # print(origin_point)
 
-    a_length, b_length = a_b_measurement(coordinates, img)
-    c_length, d_length = c_d_measurement(coordinates, img)
-
-    data = {'a': a_length, 'b': b_length, 'c': c_length, 'd': d_length}
+    data = dict()
+    data['measurements_data'] = list()
+    for i in template:
+        measurement_data = measurement(coordinates, i, img)
+        data['measurements_data'].append(measurement_data)
 
     result_name = uuid.uuid1()
     cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
@@ -168,18 +186,14 @@ def main(image=None):
         os.remove('measurement/images/{}.jpg'.format(img_name))
     if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
         os.remove('measurement/images/{}.jpg'.format(result_name))
-
-    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    # cv2.imshow("img", img)
-    # cv2.waitKey(0)
-
-    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    # cv2.imshow("edges", edges)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
+    # show_image(img)
     return data
 
 
 if __name__ == '__main__':
+    # template = [{"x": 681, "y": 313, "width": 583, "height": 354}, {"x": 1575, "y": 316, "width": 733, "height": 357}]
+    # origin_point: 296, 480, size: 1944, 2592
+    # "{""name"":""rect"",""x"":84,""y"":717,""width"":564,""height"":581}","{}"
+    # "{""name"":""rect"",""x"":71,""y"":1417,""width"":567,""height"":493}","{}"
+    # cv2.circle(img, origin_point, 80, (0, 255, 0), 0)
     main()

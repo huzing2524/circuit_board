@@ -9,36 +9,27 @@ import uuid
 import base64
 import os
 
+from django.db import connection
 
-def a_b_measurement(coordinates, img):
-    """上面竖直位置 a, 下面 竖直位置 b"""
+from .utils_huziying import horizontal_measurements
+
+
+def line_3_image_process(img):
+    """图片处理"""
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
+    img_thresh = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
+    edges = cv2.Canny(img_thresh, 200, 400, 1)
+    indices = numpy.where(edges != [0])
+    coordinates = numpy.array(list(zip(indices[1], indices[0])))
+
     top = coordinates[coordinates.argmin(axis=0)[1]]
     top_array = coordinates[numpy.where(coordinates[:, 0] == top[0])]
-    # print("top", top), print("top_array", top_array)
     top_limit = coordinates[numpy.where(
         (coordinates[:, 1] >= top_array[0][1]) & (coordinates[:, 1] <= top_array[2][1] - 20))]
-    top_left = top_limit[top_limit.argmin(axis=0)[0]]
-    top_right = top_limit[top_limit.argmax(axis=0)[0]]
-    # print("top_left", top_left, "top_right", top_right)
+    reference_coordinate = top_limit[top_limit.argmin(axis=0)[0]]
 
-    a_x = top_left[0] + (top_right[0] - top_left[0]) // 2
-    a_coordinates = coordinates[numpy.where(coordinates[:, 0] == a_x)]
-    # print("a_coordinates", a_coordinates)
-
-    a_coordinate_x, a_coordinate_y = a_coordinates[1], a_coordinates[2]
-    a_length = a_coordinate_y[1] - a_coordinate_x[1]
-    b_coordinate_x, b_coordinate_y = a_coordinates[-3], a_coordinates[-2]
-    b_length = b_coordinate_y[1] - b_coordinate_x[1]
-
-    cv2.line(img, tuple(a_coordinate_x), tuple(a_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(a_length), (a_coordinate_x[0] + 10, a_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    cv2.line(img, tuple(b_coordinate_x), tuple(b_coordinate_y), (255, 0, 0), thickness=4)
-    cv2.putText(img, str(b_length), (b_coordinate_x[0] + 10, b_coordinate_x[1] + 30), cv2.FONT_HERSHEY_SIMPLEX, 2,
-                (255, 0, 0), 4)
-
-    return {'a': a_length, 'b': b_length}
+    return coordinates, reference_coordinate
 
 
 def main(image=None):
@@ -51,16 +42,32 @@ def main(image=None):
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
-    img_thresh = cv2.threshold(img_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
+    coordinates, reference_coordinate = line_3_image_process(img)
 
-    edges = cv2.Canny(img_thresh, 200, 400, 1)
+    height, width, dimension = img.shape
+    measurements_data, data = list(), dict()
 
-    indices = numpy.where(edges != [0])
-    coordinates = numpy.array(list(zip(indices[1], indices[0])))
+    cursor = connection.cursor()
+    cursor.execute("select top_left, bottom_right, name from templates where shape = '6' and direction = '1' "
+                   "order by name;")
+    horizontal = cursor.fetchall()
+    for h in horizontal:
+        top_left = (int(h[0][0] * width + reference_coordinate[0]), int(h[0][1] * height + reference_coordinate[1]))
+        bottom_right = (int(h[1][0] * width + reference_coordinate[0]), int(h[1][1] * height + reference_coordinate[1]))
+        name = h[2]
+        # print('top_left', top_left, 'bottom_right', bottom_right)
 
-    data = a_b_measurement(coordinates, img)
+        cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), thickness=1)
+        coordinates_limit = coordinates[numpy.where(
+            (coordinates[:, 0] >= top_left[0]) & (coordinates[:, 0] <= bottom_right[0]) &
+            (coordinates[:, 1] >= top_left[1]) & (coordinates[:, 1] <= bottom_right[1]))]
+        coordinates_limit_sort = coordinates_limit[coordinates_limit[:, 0].argsort(), :]
+
+        measurement = horizontal_measurements(coordinates_limit_sort, img, name)
+        if measurement:
+            measurements_data.append(measurement)
+
+    data['measurements_data'] = measurements_data
 
     result_name = uuid.uuid1()
     cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
@@ -79,11 +86,11 @@ def main(image=None):
     # cv2.imshow("edges", edges)
     # cv2.waitKey(0)
 
-    cv2.namedWindow('img', cv2.WINDOW_NORMAL)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
 
-    cv2.destroyAllWindows()
+    # cv2.destroyAllWindows()
 
     return data
 
