@@ -9,6 +9,10 @@ import uuid
 import base64
 import os
 
+from django.db import connection
+
+from .utils_huziying import horizontal_measurements
+
 
 def a_b_measurement(coordinates, img):
     """中间宽度 a位置, 下半部 b位置"""
@@ -40,6 +44,29 @@ def a_b_measurement(coordinates, img):
     return {'a': a_length, 'b': b_length}
 
 
+def rectangle_2_image_process(img):
+    """图片处理过程"""
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_thresh = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
+    edges = cv2.Canny(img_thresh, 200, 400, 3)  # shape (1944, 2592)
+    indices = numpy.where(edges != [0])
+    coordinates = numpy.array(list(zip(indices[1], indices[0])))
+
+    bottom = coordinates[coordinates.argmax(axis=0)[1]]
+    top = coordinates[numpy.where(coordinates[:, 0] == bottom[0])][0]
+    coordinates_limit = coordinates[numpy.where(
+        (coordinates[:, 1] >= top[1] - 10) & (coordinates[:, 1] <= bottom[1] + 10))]
+
+    reference_coordinate = coordinates_limit[coordinates_limit.argmin(axis=0)[0]]
+    # print('reference_coordinate', reference_coordinate)
+
+    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
+    # cv2.imshow("edges", edges)
+    # cv2.waitKey(0)
+
+    return coordinates, reference_coordinate
+
+
 def main(image=None):
     img_name = uuid.uuid1()
     if not image:
@@ -50,17 +77,36 @@ def main(image=None):
             f.write(receive)
         img = cv2.imread('measurement/images/{}.jpg'.format(img_name))
 
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # img_blurred = cv2.GaussianBlur(img_gray, (15, 15), 0)
-    # img_blurred = cv2.bilateralFilter(img_gray, 0, 100, 15)
-    img_thresh = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # OTSU滤波, 自动找到一个介于两波峰之间的阈值
-    # img_thresh = cv2.threshold(img_blurred, 127, 255, 0)[1]  # 简单滤波
-    edges = cv2.Canny(img_thresh, 200, 400, 3)  # shape (1944, 2592)
+    height, width, dimension = img.shape
+    measurements_data, data = list(), dict()
 
-    indices = numpy.where(edges != [0])
-    coordinates = numpy.array(list(zip(indices[1], indices[0])))
+    coordinates, reference_coordinate = rectangle_2_image_process(img)
 
-    data = a_b_measurement(coordinates, img)
+    cursor = connection.cursor()
+    cursor.execute("select top_left, bottom_right, name from templates where shape = '3' and direction = '1' "
+                   "order by name;")
+    horizontal = cursor.fetchall()
+    for h in horizontal:
+        top_left = (int(h[0][0] * width + reference_coordinate[0]), int(h[0][1] * height + reference_coordinate[1]))
+        bottom_right = (int(h[1][0] * width + reference_coordinate[0]), int(h[1][1] * height + reference_coordinate[1]))
+        name = h[2]
+        # print('top_left', top_left, 'bottom_right', bottom_right)
+
+        cv2.rectangle(img, top_left, bottom_right, (0, 255, 0), thickness=1)
+        coordinates_limit = coordinates[numpy.where(
+            (coordinates[:, 0] >= top_left[0]) & (coordinates[:, 0] <= bottom_right[0]) &
+            (coordinates[:, 1] >= top_left[1]) & (coordinates[:, 1] <= bottom_right[1]))]
+        coordinates_limit_sort = coordinates_limit[coordinates_limit[:, 0].argsort(), :]
+
+        # for c in coordinates_limit_sort:
+        #     cv2.circle(img, tuple(c), 1, (0, 0, 255), 1)
+
+        if len(coordinates_limit_sort) > 0:
+            measurement = horizontal_measurements(coordinates_limit_sort, img, name)
+            if measurement:
+                measurements_data.append(measurement)
+
+    data['measurements_data'] = measurements_data
 
     result_name = uuid.uuid1()
     cv2.imwrite('measurement/images/{}.jpg'.format(result_name), img)
@@ -72,10 +118,6 @@ def main(image=None):
         os.remove('measurement/images/{}.jpg'.format(img_name))
     if os.path.exists('measurement/images/{}.jpg'.format(result_name)):
         os.remove('measurement/images/{}.jpg'.format(result_name))
-
-    # cv2.namedWindow('edges', cv2.WINDOW_NORMAL)
-    # cv2.imshow("edges", edges)
-    # cv2.waitKey(0)
 
     # cv2.namedWindow('img', cv2.WINDOW_NORMAL)
     # cv2.imshow("img", img)
