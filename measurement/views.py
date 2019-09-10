@@ -9,6 +9,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
+from .models import Template
+
 from .utils import utils_huziying
 from .utils import half_circle, line_1, line_2, line_3, rectangle_1, rectangle_2, polygon_1, polygon_2, polygon_3, \
     polygon_4, polygon_5, green_oil_thickness, fiber_surface, copper_surface, circuit_surface, \
@@ -67,19 +69,32 @@ class Measurement(APIView):
 
 
 class AddTemplate(APIView):
-    """添加模板 add_template"""
+    """添加模板 add_template
+    {
+    'shape': '1',
+    'image': 'base64 encode',
+    'data': [{
+        'name': 'A',
+        'direction': '1',
+        'coordinates': [[100, 200], [100, 300]]
+        },
+        {
+            'name': 'B',
+             'direction': '0',
+            'coordinates': [[500, 600], [700, 800]]
+        }]
+    }
+    """
 
     def post(self, request):
         shape = request.data.get("shape")
-        name = request.data.get("name")  # 模板名称
         image = request.data.get("image")
-        direction = request.data.get("direction")  # 要测量的方向，水平: 0, 垂直: 1
-        coordinates = request.data.get("coordinates")  # [[100, 200], [100, 300]]
+        data = request.data.get("data")
 
-        if not all([shape, name, image, coordinates]):
+        if not all([shape, image, data]):
             return Response({"res": 1, "errmsg": "缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
-        if direction not in ["0", "1"]:
-            return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(data, list):
+            return Response({"res": 1, "errmsg": "data参数类型错误！"}, status=status.HTTP_400_BAD_REQUEST)
 
         img_name = uuid.uuid1()
         with open('measurement/images/{}.jpg'.format(img_name), 'wb') as f:
@@ -88,11 +103,6 @@ class AddTemplate(APIView):
         height, width, dimension = img.shape
 
         cursor = connection.cursor()
-
-        cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" % (shape, name))
-        name_check = cursor.fetchone()[0]
-        if name_check >= 1:
-            return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
 
         sql = """
         insert into
@@ -104,11 +114,21 @@ class AddTemplate(APIView):
         try:
             if shape == '1':
                 reference_coordinate = half_circle.half_circle_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, direction))
-                connection.commit()
-
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    template_count_by_shape_and_name = Template.objects.filter(shape=shape,name=d['name']).count()
+                    print("count:" + str(template_count_by_shape_and_name))
+                    if template_count_by_shape_and_name >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                        width, height)
+                    t = Template(shape=shape, name=d['name'], top_left=top_left, bottom_right=bottom_right, direction=d['direction'])
+                    t.save()
+                    
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '2':
                 img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -122,63 +142,148 @@ class AddTemplate(APIView):
                 for i in edges_coordinates:
                     if i[0] + i[1] < origin_point[0] + origin_point[1]:
                         origin_point[0], origin_point[1] = i
-                top_left = "%s, %s" % ((coordinates[0][0] - origin_point[0]) / width,
-                                       (coordinates[0][1] - origin_point[1]) / height)
-                bottom_right = "%s, %s" % ((coordinates[1][0] - origin_point[0]) / width,
-                                           (coordinates[1][1] - origin_point[1]) / height)
-                sql = """
-                insert into
-                  templates (shape, name, top_left, bottom_right, direction)
-                values
-                  ('2', '%s', '{%s}', '{%s}', '%s');
-                """
-                cursor.execute(sql % (name, top_left, bottom_right, direction))
+
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left = "%s, %s" % ((d['coordinates'][0][0] - origin_point[0]) / width,
+                                           (d['coordinates'][0][1] - origin_point[1]) / height)
+                    bottom_right = "%s, %s" % ((d['coordinates'][1][0] - origin_point[0]) / width,
+                                               (d['coordinates'][1][1] - origin_point[1]) / height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '3':
                 reference_coordinate = rectangle_2.rectangle_2_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, '1'))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, '1'))
+                connection.commit()
             elif shape == '4':
                 reference_coordinate = line_1.line_1_image_process(img)[1]
                 # print('reference_coordinate', reference_coordinate)
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, '1'))
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, '1'))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '5':
                 reference_coordinate = line_2.line_2_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, '1'))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, '1'))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '6':
                 reference_coordinate = line_3.line_3_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, '1'))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, '1'))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '7':
                 reference_coordinate = polygon_1.polygon_1_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, direction))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
             elif shape == '8':
                 reference_coordinate = polygon_2.polygon_2_image_process(img)[1]
-                top_left, bottom_right = utils_huziying.find_rectangle(coordinates, reference_coordinate, width, height)
 
-                cursor.execute(sql % (shape, name, top_left, bottom_right, direction))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left, bottom_right = utils_huziying.find_rectangle(d['coordinates'], reference_coordinate,
+                                                                           width, height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
@@ -200,17 +305,23 @@ class AddTemplate(APIView):
                     if i[0] - i[1] < origin_point[0] - origin_point[1]:
                         origin_point[0], origin_point[1] = i
 
-                top_left = "%s, %s" % ((coordinates[0][0] - origin_point[0]) / width,
-                                       (coordinates[0][1] - origin_point[1]) / height)
-                bottom_right = "%s, %s" % ((coordinates[1][0] - origin_point[0]) / width,
-                                           (coordinates[1][1] - origin_point[1]) / height)
-                sql = """
-                insert into
-                  templates (shape, name, top_left, bottom_right, direction)
-                values
-                  ('12', '%s', '{%s}', '{%s}', '%s');
-                """
-                cursor.execute(sql % (name, top_left, bottom_right, direction))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left = "%s, %s" % ((d['coordinates'][0][0] - origin_point[0]) / width,
+                                           (d['coordinates'][0][1] - origin_point[1]) / height)
+                    bottom_right = "%s, %s" % ((d['coordinates'][1][0] - origin_point[0]) / width,
+                                               (d['coordinates'][1][1] - origin_point[1]) / height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
@@ -228,21 +339,27 @@ class AddTemplate(APIView):
                 edges_coordinates = numpy.array(list(zip(indices[1], indices[0])))
 
                 origin_point = edges_coordinates[0]
-
                 for i in edges_coordinates:
                     if i[0] + i[1] < origin_point[0] + origin_point[1]:
                         origin_point[0], origin_point[1] = i
-                top_left = "%s, %s" % ((coordinates[0][0] - origin_point[0]) / width,
-                                       (coordinates[0][1] - origin_point[1]) / height)
-                bottom_right = "%s, %s" % ((coordinates[1][0] - origin_point[0]) / width,
-                                           (coordinates[1][1] - origin_point[1]) / height)
-                sql = """
-                insert into
-                  templates (shape, name, top_left, bottom_right, direction)
-                values
-                  ('13', '%s', '{%s}', '{%s}', '%s');
-                """
-                cursor.execute(sql % (name, top_left, bottom_right, direction))
+
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left = "%s, %s" % ((d['coordinates'][0][0] - origin_point[0]) / width,
+                                           (d['coordinates'][0][1] - origin_point[1]) / height)
+                    bottom_right = "%s, %s" % ((d['coordinates'][1][0] - origin_point[0]) / width,
+                                               (d['coordinates'][1][1] - origin_point[1]) / height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
@@ -276,21 +393,30 @@ class AddTemplate(APIView):
                         origin_point[0], origin_point[1] = i
                 origin_point[1] += left_array[1][1]
 
-                top_left = "%s, %s" % ((coordinates[0][0] - origin_point[0]) / width,
-                                       (coordinates[0][1] - origin_point[1]) / height)
-                bottom_right = "%s, %s" % ((coordinates[1][0] - origin_point[0]) / width,
-                                           (coordinates[1][1] - origin_point[1]) / height)
-                sql = """
-                insert into
-                  templates (shape, name, top_left, bottom_right, direction)
-                values
-                  ('14', '%s', '{%s}', '{%s}', '%s');
-                """
-                cursor.execute(sql % (name, top_left, bottom_right, direction))
+                for d in data:
+                    if 'name' not in d or 'direction' not in d or 'coordinates' not in d:
+                        return Response({"res": 1, "errmsg": "data缺少参数！"}, status=status.HTTP_400_BAD_REQUEST)
+                    if d['direction'] not in ["0", "1"]:
+                        return Response({"res": 1, "errmsg": "方向参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
+                    cursor.execute("select count(*) from templates where shape = '%s' and name = '%s';" %
+                                   (shape, d['name']))
+                    name_check = cursor.fetchone()[0]
+                    if name_check >= 1:
+                        return Response({"res": 1, "errmsg": "此名称已存在！"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    top_left = "%s, %s" % ((d['coordinates'][0][0] - origin_point[0]) / width,
+                                           (d['coordinates'][0][1] - origin_point[1]) / height)
+                    bottom_right = "%s, %s" % ((d['coordinates'][1][0] - origin_point[0]) / width,
+                                               (d['coordinates'][1][1] - origin_point[1]) / height)
+
+                    cursor.execute(sql % (shape, d['name'], top_left, bottom_right, d['direction']))
                 connection.commit()
 
                 return Response({"res": 0}, status=status.HTTP_200_OK)
+            else:
+                return Response({"res": 1, "errmsg": "shape参数错误！"}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            print(e)
             return Response({"res": 1, "errmsg": "服务器错误！"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         finally:
             cursor.close()

@@ -29,19 +29,36 @@
             shape:
               type: string
               description: 'one particular shape of the image'
+              example: '1'
             image:
               type: string
               description: 'image data(base64 encode)'
-            direction:
-              type: string
-              description: '0: vertical measurements, 1: horizontal measurements'
-            coordinates:
+            data:
               type: array
-              description: 'rectangle coordinates drawn by user.
-               [(top_left_x, top_left_y), (bottom_right_x, bottom_right_y)]'
+              description: 'more than one rectangles saved as templates'
+              example: [{
+                          'name': 'A',
+                          'direction': '1',
+                          'coordinates': [[100, 200], [100, 300]]
+                        },
+                        {
+                          'name': 'B',
+                          'direction': '0',
+                          'coordinates': [[500, 600], [700, 800]]
+                        }]
               items:
-                type: integer
-              example: [[100, 200], [100, 300]]
+                properties:
+                  direction:
+                    type: string
+                    description: '0: vertical measurements, 1: horizontal measurements'
+                    example: '1'
+                  coordinates:
+                    type: array
+                    description: 'rectangle coordinates drawn by user.
+                     [(top_left_x, top_left_y), (bottom_right_x, bottom_right_y)]'
+                    items:
+                      type: integer
+                    example: [[100, 200], [100, 300]]
 
     responses:
       200:
@@ -53,20 +70,20 @@
               type: array
               description: 'measurements data'
               example: {
-                  "A_max": 59,
-                  "A_min": 17,
-                  "A_mean": 40
-                },
-                {
-                  "B_max": 65,
-                  "B_min": 40,
-                  "B_mean": 52
-                },
-                {
-                  "C_max": 96,
-                  "C_min": 80,
-                  "C_mean": 85
-                }
+                "A_max": 59,
+                "A_min": 17,
+                "A_mean": 40
+              },
+              {
+                "B_max": 65,
+                "B_min": 40,
+                "B_mean": 52
+              },
+              {
+                "C_max": 96,
+                "C_min": 80,
+                "C_mean": 85
+              }
               items:
                 properties:
                   A_max:
