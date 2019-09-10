@@ -57,8 +57,8 @@ create table templates
 Start the AOI program with
 
 ```
-set PG_HOST=192.168.99.101
-set PG_PASSWORD=aoi2019
+set PG_HOST=127.0.0.1
+set PG_PASSWORD=123456
 python manage.py runserver 127.0.0.1:8000
 ```
 
