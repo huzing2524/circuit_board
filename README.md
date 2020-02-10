@@ -1,5 +1,5 @@
 # circuit-board
-电路板铜线尺寸测量
+电路板铜线尺寸测量，效果在文件中有演示 [固定位置自动测量效果说明.pdf](https://github.com/huzing2524/circuit_board/blob/master/%E5%9B%BA%E5%AE%9A%E4%BD%8D%E7%BD%AE%E8%87%AA%E5%8A%A8%E6%B5%8B%E9%87%8F%E6%95%88%E6%9E%9C%E8%AF%B4%E6%98%8E.pdf)。
 
 * Install the libraries in the file `requirements.txt` with the script below:  
 `pip3 install -r requirements.txt`
