@@ -73,10 +73,11 @@ class AddTemplate(APIView):
     {
     'shape': '1',
     'image': 'base64 encode',
-    'data': [{
-        'name': 'A',
-        'direction': '1',
-        'coordinates': [[100, 200], [100, 300]]
+    'data': [
+        {
+            'name': 'A',
+            'direction': '1',
+            'coordinates': [[100, 200], [100, 300]]
         },
         {
             'name': 'B',
